@@ -2907,12 +2907,25 @@
             const sourceWordsSet = new Set(sourceWordsQuick);
             
             const candidates = [];
-            const MAX_CANDIDATES = 50; // Reduced further for enterprise volume
+            const MAX_CANDIDATES = 30; // Aggressively reduced for enterprise volume (8K+ target rows)
+            const MAX_PREFILTER_ITERATIONS = 500; // Limit pre-filter iterations to prevent timeout
             
             // ULTRA-FAST pre-filter: do ALL cheap checks BEFORE any normalization
+            // Limit iterations to prevent timeout on large datasets
+            let iterations = 0;
             for (let targetRow of targetData.rows) {
-                // Early termination if we have enough candidates
-                if (candidates.length >= MAX_CANDIDATES) break;
+                iterations++;
+                
+                // CRITICAL: Early termination to prevent timeout
+                // If we've checked enough rows and have good candidates, stop
+                if (candidates.length >= MAX_CANDIDATES && iterations > MAX_PREFILTER_ITERATIONS) {
+                    break;
+                }
+                
+                // If we have high-confidence candidates early, stop searching
+                if (candidates.length >= 10 && candidates.some(c => c.cheapScore >= 0.9)) {
+                    break;
+                }
                 
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
@@ -2920,63 +2933,64 @@
                 const targetLower = targetName.toLowerCase();
                 const targetLength = targetLower.length;
                 
-                // FAST CHECK 1: Length filter (before any normalization)
-                if (targetLength > sourceLength * 3 || targetLength < sourceLength * 0.3) {
+                // FAST CHECK 1: Length filter (before any normalization) - most selective first
+                if (targetLength > sourceLength * 2.5 || targetLength < sourceLength * 0.4) {
                     continue;
                 }
                 
                 // FAST CHECK 2: First character must match (very fast filter)
-                if (targetLower[0] !== sourceFirstChar && !targetLower.includes(sourceFirstChar)) {
-                    // Allow if first 4 chars might match (for camelCase)
-                    if (!targetLower.includes(sourceFirst4Chars)) {
+                if (targetLower[0] !== sourceFirstChar) {
+                    // Only check includes if first char doesn't match (more expensive)
+                    if (!targetLower.includes(sourceFirstChar) && !targetLower.includes(sourceFirst4Chars)) {
                         continue;
                     }
                 }
                 
-                // FAST CHECK 3: Quick substring check (no normalization)
+                // FAST CHECK 3: Quick substring check (no normalization) - highest priority
                 const quickSubstringMatch = targetLower.includes(sourceLower) || sourceLower.includes(targetLower);
                 if (quickSubstringMatch) {
-                    // High confidence candidate - add immediately
+                    // High confidence candidate - add immediately and prioritize
                     candidates.push({ 
                         row: targetRow, 
                         name: targetName, 
-                        normalized: null, // Will normalize later if needed
-                        cheapScore: 0.9
+                        normalized: null,
+                        cheapScore: 0.95 // Higher score for substring matches
                     });
+                    // If we have enough high-confidence matches, stop early
+                    if (candidates.length >= MAX_CANDIDATES) break;
                     continue;
                 }
                 
                 // FAST CHECK 4: First word check (simple, no normalization)
                 if (sourceFirstWord && sourceFirstWord.length >= 3) {
                     if (targetLower.includes(sourceFirstWord)) {
-                        // Good candidate
                         candidates.push({ 
                             row: targetRow, 
                             name: targetName, 
                             normalized: null,
                             cheapScore: 0.7
                         });
+                        if (candidates.length >= MAX_CANDIDATES) break;
                         continue;
                     }
                 }
                 
                 // FAST CHECK 5: Quick word overlap (split and check, no normalization)
-                const targetWordsQuick = targetLower.split(/\s+/).filter(w => w.length > 1);
-                let hasCommonWord = false;
-                for (let tw of targetWordsQuick) {
-                    if (sourceWordsSet.has(tw)) {
-                        hasCommonWord = true;
-                        break;
+                // Only do this if we don't have enough candidates yet
+                if (candidates.length < MAX_CANDIDATES) {
+                    const targetWordsQuick = targetLower.split(/\s+/).filter(w => w.length > 1);
+                    // Quick check: just see if any word matches (don't count)
+                    for (let tw of targetWordsQuick) {
+                        if (sourceWordsSet.has(tw)) {
+                            candidates.push({ 
+                                row: targetRow, 
+                                name: targetName, 
+                                normalized: null,
+                                cheapScore: 0.5
+                            });
+                            break; // Found one match, move on
+                        }
                     }
-                }
-                
-                if (hasCommonWord) {
-                    candidates.push({ 
-                        row: targetRow, 
-                        name: targetName, 
-                        normalized: null,
-                        cheapScore: 0.5
-                    });
                 }
             }
             
@@ -3195,10 +3209,11 @@
                 updateProgressBar(currentIndex);
                 
                     // Process next row after a small delay to keep browser responsive
-                    // Use setTimeout with 0ms to yield to browser, then requestAnimationFrame for smooth updates
+                    // Use setTimeout with small delay to prevent browser throttling (especially on Vercel/CDN)
+                    // This ensures the browser doesn't think the page is frozen
                     setTimeout(() => {
                         requestAnimationFrame(processNextBatch);
-                    }, 0);
+                    }, 5); // Small delay to yield to browser event loop
                 } else {
                     // Done processing
                     hideLoadingBar();
