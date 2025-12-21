@@ -2840,31 +2840,43 @@
             // This ensures "Supreme Green Inc." matches "Supreme Green Inc." (exact) 
             // NOT "Supreme Green" (normalized match)
             
-            // OPTIMIZED: Combined single pass to check for exact matches
-            // PRIORITY 1: Look for EXACT string match (highest priority)
+            // OPTIMIZED: Combined single pass to check for exact matches with early termination
+            // PRIORITY 1: Look for EXACT string match (highest priority) - fast check first
             // PRIORITY 2: Look for exact normalized match (second priority)
             let exactStringMatchFound = null;
             let exactNormalizedMatchFound = null;
             
+            // Fast exact string match check (cheap, no normalization)
             for (let targetRow of targetData.rows) {
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
                 
-                // Check for exact string match first (highest priority)
-                if (!exactStringMatchFound) {
+                // Fast check: compare lengths first (very cheap)
+                if (targetName.length !== sourceName.length) continue;
+                
+                // Fast exact string match (case-insensitive, whitespace normalized)
                 const targetNameNormalizedForExact = targetName.toLowerCase().trim().replace(/\s+/g, ' ');
                 if (sourceNameNormalizedForExact === targetNameNormalizedForExact) {
                     exactStringMatchFound = targetRow;
-                        break; // Found best match - stop immediately
-                    }
+                    break; // Found best match - stop immediately
                 }
-                
-                // Check for exact normalized match (only if no exact string match yet)
-                if (!exactStringMatchFound && !exactNormalizedMatchFound) {
-                const normalizedTargetName = normalizeText(targetName);
-                if (normalizedSourceName === normalizedTargetName) {
-                    exactNormalizedMatchFound = targetRow;
-                        // Don't break - continue to check for exact string match in remaining rows
+            }
+            
+            // Only check normalized matches if no exact string match found
+            if (!exactStringMatchFound) {
+                for (let targetRow of targetData.rows) {
+                    const targetName = String(targetRow[targetColumns.name] || '').trim();
+                    if (!targetName) continue;
+                    
+                    // Quick length check before expensive normalization
+                    const targetLen = targetName.length;
+                    const sourceLen = sourceName.length;
+                    if (targetLen > sourceLen * 2 || targetLen < sourceLen * 0.5) continue;
+                    
+                    const normalizedTargetName = normalizeText(targetName);
+                    if (normalizedSourceName === normalizedTargetName) {
+                        exactNormalizedMatchFound = targetRow;
+                        break; // Found exact normalized match - stop
                     }
                 }
             }
@@ -2882,81 +2894,88 @@
             // If we get here, NO exact matches were found - proceed with fuzzy matching
 
             // NO EXACT MATCHES FOUND - Use optimized fuzzy matching
-            // OPTIMIZED: Use FAST pre-filter with early termination, then limit candidates
+            // ENTERPRISE-OPTIMIZED: Ultra-fast pre-filter with minimal normalization overhead
             // Pre-compute source data once (outside the loop)
-            // Normalize source name for pre-filtering (remove hyphens, domains, etc.)
-            const sourceForFilter = sourceName.toLowerCase()
-                .replace(/\.com|\.net|\.org|\.io/gi, ' ')
-                .replace(/[-]/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-            const sourceWords = sourceForFilter.split(' ').filter(w => w.length > 1); // Include words > 1 char
-            const sourceWordsSet = new Set(sourceWords); // For O(1) lookup
-            const sourceFirstWord = sourceWords[0] || '';
-            const sourceLength = sourceForFilter.length;
+            const sourceLower = sourceName.toLowerCase().trim();
+            const sourceLength = sourceLower.length;
+            const sourceFirstChar = sourceLower[0] || '';
+            const sourceFirst4Chars = sourceLower.substring(0, 4);
+            
+            // Quick word extraction (simple split, no normalization yet)
+            const sourceWordsQuick = sourceLower.split(/\s+/).filter(w => w.length > 1);
+            const sourceFirstWord = sourceWordsQuick[0] || '';
+            const sourceWordsSet = new Set(sourceWordsQuick);
             
             const candidates = [];
-            const MAX_CANDIDATES = 80; // Aggressively reduced for speed
+            const MAX_CANDIDATES = 50; // Reduced further for enterprise volume
             
-            // ULTRA-FAST pre-filter with early termination
+            // ULTRA-FAST pre-filter: do ALL cheap checks BEFORE any normalization
             for (let targetRow of targetData.rows) {
-                // Early termination if we have enough high-quality candidates
-                if (candidates.length >= MAX_CANDIDATES * 1.5) break;
+                // Early termination if we have enough candidates
+                if (candidates.length >= MAX_CANDIDATES) break;
                 
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
                 
-                // Normalize target name for pre-filtering (same as source)
-                const targetForFilter = normalizeText(targetName);
-                const targetLength = targetForFilter.length;
+                const targetLower = targetName.toLowerCase();
+                const targetLength = targetLower.length;
                 
-                // RELAXED CHECK 1: Length filter (more permissive)
+                // FAST CHECK 1: Length filter (before any normalization)
                 if (targetLength > sourceLength * 3 || targetLength < sourceLength * 0.3) {
                     continue;
                 }
                 
-                // RELAXED CHECK 2: Substring match (either direction) - handles "Foley" in "Foley Services", "Snapchat" contains "Snap"
-                const sourceInTarget = targetForFilter.includes(sourceForFilter);
-                const targetInSource = sourceForFilter.includes(targetForFilter);
-                const hasSubstringMatch = sourceInTarget || targetInSource;
-                
-                // RELAXED CHECK 3: First word or significant substring must appear
-                let hasFirstWordMatch = false;
-                if (sourceFirstWord && sourceFirstWord.length >= 3) {
-                    hasFirstWordMatch = targetForFilter.includes(sourceFirstWord);
-                } else if (sourceForFilter.length >= 4) {
-                    // For short names, check if first 4 chars appear
-                    hasFirstWordMatch = targetForFilter.includes(sourceForFilter.substring(0, 4));
+                // FAST CHECK 2: First character must match (very fast filter)
+                if (targetLower[0] !== sourceFirstChar && !targetLower.includes(sourceFirstChar)) {
+                    // Allow if first 4 chars might match (for camelCase)
+                    if (!targetLower.includes(sourceFirst4Chars)) {
+                        continue;
+                    }
                 }
                 
-                // RELAXED CHECK 4: Word overlap (at least one word matches)
-                const targetWords = targetForFilter.split(' ').filter(w => w.length > 1);
-                const targetWordsSet = new Set(targetWords);
-                let commonCount = 0;
-                for (let sw of sourceWords) {
-                    if (targetWordsSet.has(sw)) commonCount++;
-                }
-                
-                // Include if ANY of these conditions are met:
-                // 1. Substring match (either direction)
-                // 2. First word matches
-                // 3. At least one word overlaps
-                if (hasSubstringMatch || hasFirstWordMatch || commonCount > 0) {
-                    let cheapScore = commonCount * 0.4;
-                    if (hasSubstringMatch) {
-                        const minLen = Math.min(sourceLength, targetLength);
-                        const maxLen = Math.max(sourceLength, targetLength);
-                        cheapScore += (minLen / maxLen) * 0.6; // Boost for substring matches
-                    }
-                    if (hasFirstWordMatch) {
-                        cheapScore += 0.3; // Boost for first word match
-                    }
-                    
+                // FAST CHECK 3: Quick substring check (no normalization)
+                const quickSubstringMatch = targetLower.includes(sourceLower) || sourceLower.includes(targetLower);
+                if (quickSubstringMatch) {
+                    // High confidence candidate - add immediately
                     candidates.push({ 
                         row: targetRow, 
                         name: targetName, 
-                        normalized: normalizeText(targetName), // Full normalization for later
-                        cheapScore: cheapScore
+                        normalized: null, // Will normalize later if needed
+                        cheapScore: 0.9
+                    });
+                    continue;
+                }
+                
+                // FAST CHECK 4: First word check (simple, no normalization)
+                if (sourceFirstWord && sourceFirstWord.length >= 3) {
+                    if (targetLower.includes(sourceFirstWord)) {
+                        // Good candidate
+                        candidates.push({ 
+                            row: targetRow, 
+                            name: targetName, 
+                            normalized: null,
+                            cheapScore: 0.7
+                        });
+                        continue;
+                    }
+                }
+                
+                // FAST CHECK 5: Quick word overlap (split and check, no normalization)
+                const targetWordsQuick = targetLower.split(/\s+/).filter(w => w.length > 1);
+                let hasCommonWord = false;
+                for (let tw of targetWordsQuick) {
+                    if (sourceWordsSet.has(tw)) {
+                        hasCommonWord = true;
+                        break;
+                    }
+                }
+                
+                if (hasCommonWord) {
+                    candidates.push({ 
+                        row: targetRow, 
+                        name: targetName, 
+                        normalized: null,
+                        cheapScore: 0.5
                     });
                 }
             }
@@ -2966,11 +2985,13 @@
             const topCandidates = candidates.slice(0, MAX_CANDIDATES);
             
             // Second pass: Calculate similarity only for top pre-filtered candidates
+            // Use the already-computed normalizedSourceName from earlier in the function
             const allMatches = [];
             for (let candidate of topCandidates) {
                 const targetRow = candidate.row;
                 const targetName = candidate.name;
-                const normalizedTargetName = candidate.normalized;
+                // Normalize only when we actually need to calculate similarity (deferred normalization)
+                const normalizedTargetName = normalizeText(targetName);
                 
                 const sourceInTarget = normalizedTargetName.includes(normalizedSourceName);
                 const targetInSource = normalizedSourceName.includes(normalizedTargetName);
