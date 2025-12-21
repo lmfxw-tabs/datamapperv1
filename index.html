@@ -3143,12 +3143,10 @@
                     return;
                 }
                 
-                // Process rows in batches for better performance
-                const batchSize = Math.max(1, Math.floor(totalRows / 100));
-                const endIndex = Math.min(currentIndex + batchSize, sourceData.rows.length);
-                
-                for (let i = currentIndex; i < endIndex; i++) {
-                    const sourceRow = sourceData.rows[i];
+                // Process one row at a time to prevent browser freezing
+                // Update progress after each row to keep UI responsive
+                if (currentIndex < sourceData.rows.length) {
+                    const sourceRow = sourceData.rows[currentIndex];
                     const matchResults = findBestMatches(sourceRow);
                     const bestMatch = matchResults.matches[0];
                     const secondMatch = matchResults.matches[1];
@@ -3170,14 +3168,16 @@
                         thirdTargetName: thirdMatch.match ? (thirdMatch.match[targetColumns.name] || '') : '',
                         thirdScore: thirdMatch.score
                     });
-                }
                 
-                currentIndex = endIndex;
+                    currentIndex++;
+                    // Update progress after each row
                 updateProgressBar(currentIndex);
                 
-                if (currentIndex < sourceData.rows.length) {
-                    // Continue processing
-                    setTimeout(() => requestAnimationFrame(processNextBatch), 10);
+                    // Process next row after a small delay to keep browser responsive
+                    // Use setTimeout with 0ms to yield to browser, then requestAnimationFrame for smooth updates
+                    setTimeout(() => {
+                        requestAnimationFrame(processNextBatch);
+                    }, 0);
                 } else {
                     // Done processing
                     hideLoadingBar();
@@ -3188,7 +3188,7 @@
             }
             
             // Start processing
-            setTimeout(() => requestAnimationFrame(processNextBatch), 100);
+            requestAnimationFrame(processNextBatch);
         }
 
         // ELI5: This function gets a text label for confidence level
