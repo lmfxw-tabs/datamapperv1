@@ -1,0 +1,3835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Mapper - CSV/Excel Mapping Tool</title>
+    <!-- SheetJS library for Excel reading/writing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+            background: #c0c0c0;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px),
+                repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+            min-height: 100vh;
+            padding: 32px;
+            position: relative;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f0f0f0;
+            border: 2px solid #808080;
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+            border-right-color: #404040;
+            border-bottom-color: #404040;
+            padding: 0;
+            box-shadow: 
+                0 4px 16px rgba(0,0,0,0.2),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            position: relative;
+            z-index: 1;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        h1 {
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            color: #ffffff;
+            margin: 0;
+            padding: 12px 20px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            border-bottom: 1px solid #000080;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            letter-spacing: -0.01em;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+            position: relative;
+            line-height: 1.3;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .subtitle {
+            text-align: left;
+            color: #333333;
+            margin: 0;
+            padding: 14px 20px;
+            font-size: 12px;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+            line-height: 1.47;
+            background: #f0f0f0;
+            border-bottom: 1px solid #d0d0d0;
+        }
+
+        .step-indicator {
+            background: #f0f0f0;
+            padding: 12px 20px;
+            border-bottom: 1px solid #d0d0d0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 12px;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #808080;
+            cursor: default;
+            user-select: none;
+        }
+
+        .step-item.active {
+            color: #1941a5;
+            font-weight: 600;
+        }
+
+        .step-item.completed {
+            color: #333333;
+        }
+
+        .step-item.disabled {
+            color: #c0c0c0;
+            cursor: not-allowed;
+        }
+
+        .step-connector {
+            width: 30px;
+            height: 1px;
+            background: #c0c0c0;
+            border-top: 1px solid #808080;
+        }
+
+        .step-connector.active {
+            background: #1941a5;
+            border-top-color: #1941a5;
+        }
+
+        .readiness-summary {
+            background: #f0f0f0;
+            padding: 10px 20px;
+            border-bottom: 1px solid #d0d0d0;
+            font-size: 12px;
+            color: #333333;
+            display: none;
+        }
+
+        .readiness-summary.visible {
+            display: block;
+        }
+
+        .helper-text {
+            font-size: 11px;
+            color: #666666;
+            margin-top: 4px;
+            margin-bottom: 4px;
+            font-style: italic;
+        }
+
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 0;
+            padding: 24px;
+            background: #f0f0f0;
+        }
+
+        .input-box {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 590;
+            color: #1d1d1f;
+            margin-bottom: 10px;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+            padding: 0;
+        }
+
+        .file-upload-area {
+            border: 1px solid #c0c0c0;
+            padding: 32px 24px;
+            text-align: center;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            cursor: pointer;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.15s ease;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            position: relative;
+            overflow: hidden;
+            border-radius: 6px;
+        }
+
+        #sourceUploadArea {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+        }
+
+        #sourceUploadArea:hover {
+            background: linear-gradient(to bottom, #f8f8f8 0%, #f0f0f0 100%);
+            box-shadow: 
+                inset 1px 1px 3px rgba(0,0,0,0.1),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+        }
+
+        #targetUploadArea {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+        }
+
+        #targetUploadArea:hover {
+            background: linear-gradient(to bottom, #f8f8f8 0%, #f0f0f0 100%);
+            box-shadow: 
+                inset 1px 1px 3px rgba(0,0,0,0.1),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+        }
+
+        .file-upload-area.dragover {
+            background: linear-gradient(to bottom, #fff9c4 0%, #ffe082 100%);
+            border-color: #ffb300;
+            box-shadow: 
+                inset 1px 1px 3px rgba(0,0,0,0.1),
+                inset -1px -1px 1px rgba(255,255,255,0.8),
+                0 0 12px rgba(255,179,0,0.3);
+        }
+
+        .file-upload-area p {
+            color: #6e6e73;
+            font-size: 13px;
+            margin: 6px 0;
+            font-weight: 400;
+            line-height: 1.47;
+        }
+        
+        .file-upload-area p:last-child {
+            color: #86868b;
+            font-size: 12px;
+            margin-top: 12px;
+            font-weight: 400;
+        }
+
+        .file-upload-area p:first-child {
+            font-weight: 590;
+            font-size: 15px;
+            margin-bottom: 8px;
+            letter-spacing: -0.01em;
+            color: #1d1d1f;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border: 1px solid #c0c0c0;
+            font-size: 12px;
+            color: #1d1d1f;
+            border-radius: 6px;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            position: relative;
+            animation: fileInfoSlide 0.2s ease;
+            line-height: 1.47;
+        }
+        
+        @keyframes fileInfoSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #sourceFileInfo {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+        }
+
+        #targetFileInfo {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+        }
+
+        .file-info strong {
+            color: #245edb;
+            font-weight: 590;
+        }
+
+        /* Apple-Inspired Modal Dialog */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-dialog {
+            background: #f0f0f0;
+            border: 2px solid #808080;
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+            border-right-color: #404040;
+            border-bottom-color: #404040;
+            min-width: 520px;
+            max-width: 680px;
+            box-shadow: 
+                0 8px 32px rgba(0,0,0,0.2),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            animation: modalAppear 0.2s ease;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        @keyframes modalAppear {
+            from {
+                opacity: 0;
+                transform: scale(0.98) translateY(-4px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal-titlebar {
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            color: #ffffff;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #000080;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+            letter-spacing: -0.01em;
+            min-height: 32px;
+        }
+
+        .modal-titlebar-text {
+            flex: 1;
+        }
+
+        .modal-controls {
+            display: flex;
+            gap: 2px;
+        }
+
+        .modal-control-button {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(to bottom, #c0c0c0 0%, #a0a0a0 100%);
+            border: 1px outset #c0c0c0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #000000;
+            font-weight: 600;
+            transition: all 0.1s ease;
+            border-radius: 3px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            line-height: 1;
+        }
+
+        .modal-control-button:hover {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #b4b4b4 100%);
+        }
+
+        .modal-control-button:active {
+            border: 1px inset #c0c0c0;
+            background: linear-gradient(to bottom, #a0a0a0 0%, #808080 100%);
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .modal-content {
+            padding: 20px;
+            background: #f0f0f0;
+            position: relative;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section-title {
+            font-size: 13px;
+            font-weight: 590;
+            color: #1d1d1f;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e5e5ea;
+            letter-spacing: -0.01em;
+            position: relative;
+        }
+
+        .column-selection-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        .column-selector {
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            padding: 14px;
+            border: 1px solid #c0c0c0;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            transition: all 0.15s ease;
+            border-radius: 6px;
+        }
+
+        .column-selector label {
+            font-size: 13px;
+            margin-bottom: 10px;
+            color: #1d1d1f;
+            font-weight: 590;
+            letter-spacing: -0.01em;
+        }
+
+        select {
+            padding: 6px 10px;
+            border: 1px solid #808080;
+            border-top-color: #c0c0c0;
+            border-left-color: #c0c0c0;
+            border-right-color: #404040;
+            border-bottom-color: #404040;
+            font-size: 13px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.1);
+            transition: all 0.1s ease;
+            color: #1d1d1f;
+            border-radius: 4px;
+        }
+
+        select:hover {
+            background: linear-gradient(to bottom, #f8f8f8 0%, #f0f0f0 100%);
+        }
+
+        select:focus {
+            outline: 2px solid #245edb;
+            outline-offset: -2px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+        }
+
+        .sheet-selector {
+            margin-bottom: 14px;
+            padding: 14px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border: 1px solid #c0c0c0;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            border-radius: 6px;
+        }
+        
+        .sheet-selector label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 590;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+            color: #1d1d1f;
+        }
+
+        .matching-summary {
+            background: linear-gradient(to bottom, #e8f4fd 0%, #d0e8f8 100%);
+            border: 1px solid #4a90e2;
+            padding: 12px 16px;
+            margin: 20px 0 0 0;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #333333;
+        }
+
+        .matching-summary strong {
+            color: #1941a5;
+            font-weight: 600;
+        }
+
+        .reference-columns {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 120px;
+            overflow-y: auto;
+            padding: 8px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border: 1px inset #c0c0c0;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+
+        .reference-column-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reference-column-item input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+
+        .reference-column-item label {
+            font-size: 12px;
+            font-weight: 400;
+            margin: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .reference-column-item.match-column-locked input[type="checkbox"]:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .reference-column-item.match-column-locked label {
+            cursor: default;
+            /* Keep label text normal, only disable checkbox interaction */
+        }
+
+        .output-order-container {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .output-order-list {
+            flex: 1;
+            border: 1px inset #c0c0c0;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 2px;
+        }
+
+        .output-order-item {
+            padding: 6px 10px;
+            font-size: 12px;
+            color: #1d1d1f;
+            cursor: default;
+            border: 1px solid transparent;
+            background: transparent;
+            user-select: none;
+        }
+
+        .output-order-item:hover {
+            background: #e8f4fd;
+        }
+
+        .output-order-item.selected {
+            background: #245edb;
+            color: #ffffff;
+            border-color: #000080;
+        }
+
+        .output-order-item.match-column {
+            background: #e8e8e8;
+            color: #333333;
+            border: 1px solid #d0d0d0;
+        }
+
+        .output-order-item.match-column.selected {
+            background: #d0d0d0;
+            color: #1d1d1f;
+            border-color: #b0b0b0;
+        }
+
+        .output-order-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .order-button {
+            padding: 4px 12px;
+            font-size: 11px;
+            background: linear-gradient(to bottom, #ececec 0%, #d4d0c8 100%);
+            border: 1px outset #c0c0c0;
+            color: #1d1d1f;
+            cursor: pointer;
+            border-radius: 3px;
+            white-space: nowrap;
+            transition: all 0.1s ease;
+        }
+
+        .order-button:hover {
+            background: linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%);
+        }
+
+        .order-button:active {
+            border: 1px inset #c0c0c0;
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .order-button:disabled {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            color: #808080;
+            cursor: not-allowed;
+            border: 1px inset #c0c0c0;
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #c0c0c0;
+        }
+
+        /* Apple-Inspired Loading Modal */
+        .loading-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+        }
+
+        .loading-modal.active {
+            display: flex;
+        }
+
+        .loading-dialog {
+            background: #f0f0f0;
+            border: 2px solid #808080;
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+            border-right-color: #404040;
+            border-bottom-color: #404040;
+            min-width: 400px;
+            box-shadow: 
+                0 8px 32px rgba(0,0,0,0.2),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            animation: modalAppear 0.2s ease;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .loading-titlebar {
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            color: #ffffff;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #000080;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+            letter-spacing: -0.01em;
+            min-height: 32px;
+        }
+
+        .loading-content {
+            padding: 20px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .loading-icon {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+            background: linear-gradient(to bottom, #ffeb3b 0%, #ffc107 100%);
+            border: 2px solid #333;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #000000;
+            box-shadow: 
+                inset 1px 1px 0 rgba(255,255,255,0.5),
+                inset -1px -1px 0 rgba(0,0,0,0.3),
+                0 1px 2px rgba(0,0,0,0.2);
+            animation: iconSpin 1.5s linear infinite;
+        }
+        
+        @keyframes iconSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text-area {
+            flex: 1;
+        }
+
+        .loading-message {
+            font-size: 12px;
+            color: #333333;
+            margin-bottom: 12px;
+            font-weight: 400;
+            line-height: 1.47;
+        }
+
+        .loading-progress-container {
+            background: #ffffff;
+            border: 2px inset #c0c0c0;
+            height: 22px;
+            padding: 2px;
+            margin-bottom: 16px;
+            position: relative;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-progress-segments {
+            display: flex;
+            gap: 1px;
+            height: 100%;
+            width: 100%;
+        }
+
+        .loading-segment {
+            flex: 1;
+            background: #e0e0e0;
+            border: 1px solid #808080;
+            transition: all 0.2s ease;
+        }
+
+        .loading-segment.filled {
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            border: 1px solid #000080;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.3);
+            animation: fillPulse 0.2s ease;
+        }
+        
+        @keyframes fillPulse {
+            0% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+
+        .loading-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding-top: 12px;
+            border-top: 1px solid #c0c0c0;
+            margin-top: 12px;
+        }
+
+        /* Modern Windows-Inspired Icons */
+        .icon {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            margin-right: 10px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+            flex-shrink: 0;
+        }
+
+        /* Windows XP-style folder icon */
+        .icon-folder { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="folderGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:%23FFD700;stop-opacity:1" /><stop offset="100%" style="stop-color:%23FFA500;stop-opacity:1" /></linearGradient></defs><path fill="url(%23folderGrad)" d="M4 4h8l2 3h8v13H4z" stroke="%23333" stroke-width="0.5"/><path fill="%23FFC107" d="M4 4h8l2 2h10v11H4z"/><path fill="%23FFD54F" d="M4 4h8v3h10v-3H14z" opacity="0.4"/></svg>'); 
+        }
+        
+        /* Windows XP-style file icon */
+        .icon-file { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="fileGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:%23FFFFFF;stop-opacity:1" /><stop offset="100%" style="stop-color:%23F0F0F0;stop-opacity:1" /></linearGradient></defs><path fill="url(%23fileGrad)" d="M6 2h10l4 4v14H6V2z" stroke="%23333" stroke-width="0.8"/><path fill="%23E3F2FD" d="M6 2h10v4h4v14H6z"/><rect fill="%231941a5" x="8" y="10" width="8" height="1.5" rx="0.3"/><rect fill="%231941a5" x="8" y="13" width="6" height="1.5" rx="0.3"/><rect fill="%231941a5" x="8" y="16" width="8" height="1.5" rx="0.3"/></svg>'); 
+        }
+        
+        /* Modern network/connection icon */
+        .icon-network { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="netGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%233169E1;stop-opacity:1" /><stop offset="100%" style="stop-color:%2300080;stop-opacity:1" /></linearGradient></defs><circle fill="url(%23netGrad)" cx="6" cy="6" r="3.5" stroke="%23000" stroke-width="1"/><circle fill="url(%23netGrad)" cx="18" cy="6" r="3.5" stroke="%23000" stroke-width="1"/><circle fill="url(%23netGrad)" cx="12" cy="18" r="3.5" stroke="%23000" stroke-width="1"/><line stroke="url(%23netGrad)" stroke-width="2.5" x1="6" y1="6" x2="12" y2="18"/><line stroke="url(%23netGrad)" stroke-width="2.5" x1="18" y1="6" x2="12" y2="18"/></svg>'); 
+        }
+        
+        /* Modern check icon */
+        .icon-check { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle fill="%2390EE90" cx="12" cy="12" r="10" stroke="%23000" stroke-width="2"/><path d="M7 12l4 4 6-8" stroke="%23000" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'); 
+        }
+        
+        /* Modern warning icon */
+        .icon-warning { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="warnGrad" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" style="stop-color:%23FFFF00;stop-opacity:1" /><stop offset="100%" style="stop-color:%23FFD700;stop-opacity:1" /></linearGradient></defs><path fill="url(%23warnGrad)" d="M12 2L2 22h20z" stroke="%23000" stroke-width="1.5"/><circle fill="%23000" cx="12" cy="16" r="1.5"/><rect fill="%23000" x="11" y="8" width="2" height="5" rx="1"/></svg>'); 
+        }
+        
+        /* Modern info icon */
+        .icon-info { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="infoGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%233169E1;stop-opacity:1" /><stop offset="100%" style="stop-color:%2300080;stop-opacity:1" /></linearGradient></defs><circle fill="url(%23infoGrad)" cx="12" cy="12" r="10" stroke="%23000" stroke-width="2"/><text fill="%23FFFFFF" x="12" y="17" text-anchor="middle" font-size="14" font-weight="bold" font-family="Arial">i</text></svg>'); 
+        }
+        
+        .icon-computer { 
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="compGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:%23C0C0C0;stop-opacity:1" /><stop offset="100%" style="stop-color:%23808080;stop-opacity:1" /></linearGradient></defs><rect fill="url(%23compGrad)" x="3" y="4" width="18" height="12" rx="1" stroke="%23000" stroke-width="1.5"/><rect fill="%23000" x="5" y="6" width="14" height="8" rx="0.5"/><rect fill="url(%23compGrad)" x="8" y="17" width="8" height="1.5" rx="0.5"/></svg>'); 
+        }
+
+        .button-section {
+            text-align: center;
+            margin: 0;
+            padding: 20px 24px;
+            background: #f0f0f0;
+            border-top: 1px solid #d0d0d0;
+            position: relative;
+        }
+
+        button {
+            background: linear-gradient(to bottom, #ececec 0%, #d4d0c8 100%);
+            color: #1d1d1f;
+            border: 1px outset #c0c0c0;
+            padding: 8px 20px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 400;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+            margin: 0 6px;
+            min-width: 110px;
+            position: relative;
+            z-index: 1;
+            transition: all 0.1s ease;
+            letter-spacing: -0.01em;
+            box-shadow: 
+                0 1px 2px rgba(0,0,0,0.1),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            border-radius: 4px;
+        }
+
+        #mapButton {
+            background: linear-gradient(to bottom, #4a90e2 0%, #245edb 100%);
+            border: 1px outset #4a90e2;
+            color: #ffffff;
+            font-weight: 590;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            box-shadow: 
+                0 1px 2px rgba(0,0,0,0.15),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        #mapButton:hover {
+            background: linear-gradient(to bottom, #5a9ef2 0%, #346efb 100%);
+            box-shadow: 
+                0 2px 4px rgba(0,0,0,0.2),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        #mapButton:active {
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            border: 1px inset #4a90e2;
+            box-shadow: 
+                inset 1px 1px 3px rgba(0,0,0,0.3),
+                inset -1px -1px 1px rgba(255,255,255,0.2);
+        }
+
+        #mapButton:disabled {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            color: #808080;
+            cursor: not-allowed;
+            pointer-events: none;
+            border: 1px outset #c0c0c0;
+            text-shadow: none;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.1);
+            opacity: 1;
+        }
+
+        #exportButton {
+            background: linear-gradient(to bottom, #ececec 0%, #d4d0c8 100%);
+            border: 1px outset #c0c0c0;
+            color: #1d1d1f;
+        }
+
+        #exportButton:hover {
+            background: linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%);
+            box-shadow: 
+                0 2px 4px rgba(0,0,0,0.1),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+
+        #exportButton:active {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            border: 1px inset #c0c0c0;
+            box-shadow: 
+                inset 1px 1px 3px rgba(0,0,0,0.2),
+                inset -1px -1px 1px rgba(255,255,255,0.3);
+        }
+
+        button:hover:not(:disabled):not(#mapButton) {
+            background: linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%);
+            box-shadow: 
+                0 2px 4px rgba(0,0,0,0.1),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+
+        button:active:not(:disabled):not(#mapButton) {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            border: 1px inset #c0c0c0;
+            box-shadow: 
+                inset 1px 1px 3px rgba(0,0,0,0.2),
+                inset -1px -1px 1px rgba(255,255,255,0.3);
+        }
+
+        button:disabled:not(#mapButton) {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            color: #808080;
+            cursor: not-allowed;
+            border: 1px outset #c0c0c0;
+            pointer-events: none;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.1);
+            opacity: 1;
+        }
+        
+        button:disabled .icon {
+            opacity: 0.4;
+        }
+
+        .results-section {
+            margin: 0;
+            padding: 24px;
+            background: #f0f0f0;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: linear-gradient(to bottom, #ececec 0%, #e0e0e0 100%);
+            border: 1px solid #c0c0c0;
+            border-radius: 4px;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            position: relative;
+        }
+
+        .results-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1d1d1f;
+            background: transparent;
+            padding: 0;
+            border: none;
+            display: inline-block;
+            letter-spacing: -0.01em;
+            box-shadow: none;
+            position: relative;
+        }
+
+        .stats {
+            font-size: 12px;
+            color: #333333;
+            font-weight: 400;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            letter-spacing: -0.01em;
+        }
+
+        .results-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border: 1px solid #c0c0c0;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toolbar-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #333333;
+            margin: 0;
+        }
+
+        .toolbar-button {
+            padding: 4px 12px;
+            font-size: 12px;
+            background: linear-gradient(to bottom, #ececec 0%, #d4d0c8 100%);
+            border: 1px outset #c0c0c0;
+            color: #1d1d1f;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.1s ease;
+            font-weight: 400;
+        }
+
+        .toolbar-button:hover {
+            background: linear-gradient(to bottom, #f0f0f0 0%, #e0e0e0 100%);
+        }
+
+        .toolbar-button.active {
+            background: linear-gradient(to bottom, #d4d0c8 0%, #c0c0c0 100%);
+            border: 1px inset #c0c0c0;
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .toolbar-group select {
+            padding: 4px 8px;
+            font-size: 12px;
+            border: 1px solid #808080;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 12px;
+            background: linear-gradient(to bottom, #ececec 0%, #e0e0e0 100%);
+            border-top: 1px solid #c0c0c0;
+            font-size: 11px;
+            color: #333333;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+        }
+
+        .status-left, .status-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #statusText {
+            font-weight: 500;
+        }
+
+        #fileStatus {
+            color: #666666;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: #ffffff;
+            border: 1px solid #c0c0c0;
+            margin: 0 0 20px 0;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            color: #ffffff;
+        }
+
+        th {
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 590;
+            font-size: 12px;
+            border-right: 1px solid rgba(255,255,255,0.15);
+            border-bottom: 1px solid #000080;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            letter-spacing: -0.01em;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+
+        th:last-child {
+            border-right: none;
+        }
+
+        td {
+            padding: 10px 14px;
+            border-right: 1px solid #f0f0f0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+            background: #ffffff;
+            vertical-align: top;
+            color: #1d1d1f;
+            line-height: 1.47;
+        }
+
+        td:last-child {
+            border-right: none;
+        }
+
+        tr:nth-child(even) td {
+            background: #ffffff;
+        }
+
+        tr:nth-child(odd) td {
+            background: #fafafa;
+        }
+
+        tr:hover td {
+            background: #e8f4fd;
+            color: #1d1d1f;
+            transition: all 0.15s ease;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .confidence {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid #b0b0b0;
+            letter-spacing: -0.01em;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            position: relative;
+            border-radius: 3px;
+        }
+
+        .confidence.exact {
+            background: #d1f2d1;
+            color: #1e7e1e;
+        }
+
+        .confidence.high {
+            background: #cce5ff;
+            color: #0051d5;
+        }
+
+        .confidence.medium {
+            background: #ffe5cc;
+            color: #d2691e;
+        }
+
+        .confidence.low {
+            background: #ffcccc;
+            color: #cc0000;
+        }
+
+        .confidence.none {
+            background: #e5e5ea;
+            color: #86868b;
+        }
+
+        .info-box {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border: 1px solid #c0c0c0;
+            padding: 16px 20px;
+            margin: 0;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            position: relative;
+            border-radius: 6px;
+        }
+
+        .info-box p {
+            margin: 8px 0;
+            font-size: 12px;
+            color: #333333;
+            line-height: 1.47;
+        }
+        
+        .info-box p:not(:first-child) {
+            padding-left: 18px;
+            position: relative;
+        }
+        
+        .info-box p:not(:first-child)::before {
+            content: '•';
+            position: absolute;
+            left: 8px;
+            color: #666666;
+            font-weight: 600;
+        }
+
+        .info-box p:first-child {
+            margin-top: 0;
+            font-size: 13px;
+            font-weight: 590;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #d0d0d0;
+            color: #1d1d1f;
+            letter-spacing: -0.01em;
+        }
+
+        .error-message {
+            background: linear-gradient(to bottom, #ffffff 0%, #fff5f5 100%);
+            border: 1px solid #ff8080;
+            border-left: 4px solid #ff0000;
+            padding: 12px 16px;
+            margin: 0 24px 20px;
+            color: #333333;
+            font-size: 12px;
+            display: none;
+            font-weight: 400;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.05),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            position: relative;
+            animation: errorShake 0.2s ease;
+            line-height: 1.47;
+            border-radius: 4px;
+        }
+        
+        @keyframes errorShake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+
+        .metrics-box {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f8f8 100%);
+            border: 1px solid #c0c0c0;
+            padding: 16px 20px;
+            margin: 0 0 20px 0;
+            display: none;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.08),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            border-radius: 6px;
+        }
+
+        .metrics-box.active {
+            display: block;
+        }
+
+        .metrics-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 16px;
+            text-align: center;
+            background: linear-gradient(to bottom, #245edb 0%, #1941a5 100%);
+            padding: 10px;
+            border: 1px solid #000080;
+            letter-spacing: -0.01em;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+            position: relative;
+            border-radius: 4px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+
+        .metric-item {
+            background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
+            border: 1px solid #d0d0d0;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 
+                inset 1px 1px 2px rgba(0,0,0,0.05),
+                inset -1px -1px 1px rgba(255,255,255,0.8);
+            transition: all 0.15s ease;
+            position: relative;
+            overflow: hidden;
+            border-radius: 4px;
+        }
+        
+        .metric-item:hover {
+            background: linear-gradient(to bottom, #f8f8f8 0%, #f0f0f0 100%);
+            border-color: #c0c0c0;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #6e6e73;
+            margin-bottom: 10px;
+            letter-spacing: 0.03em;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 36px;
+            font-weight: 600;
+            color: #1d1d1f;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .metric-value.success {
+            color: #34c759;
+        }
+
+        .metric-value.warning {
+            color: #ff9500;
+        }
+
+        .metric-value.error {
+            color: #ff3b30;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DATA MAPPER</h1>
+        <p class="subtitle">Intelligent data mapping for any two lists. Smart matching algorithms with confidence scoring.</p>
+        <div class="step-indicator" id="stepIndicator">
+            <div class="step-item active" id="step1" data-step="1">
+                <span>●</span>
+                <span>Load Data</span>
+            </div>
+            <div class="step-connector" id="connector1"></div>
+            <div class="step-item disabled" id="step2" data-step="2">
+                <span>●</span>
+                <span>Configure Matching</span>
+            </div>
+            <div class="step-connector" id="connector2"></div>
+            <div class="step-item disabled" id="step3" data-step="3">
+                <span>●</span>
+                <span>Review Results</span>
+            </div>
+        </div>
+        <div class="readiness-summary" id="readinessSummary"></div>
+
+        <div class="info-box">
+            <p><strong><span class="icon icon-info"></span>How to use:</strong></p>
+            <p>1. Upload your first list as the <strong>Source file</strong> (CSV or Excel)</p>
+            <p>2. Upload your second list as the <strong>Target file</strong> (CSV or Excel)</p>
+            <p>3. Configure matching columns by selecting one match column from each file</p>
+            <p>4. Optionally select reference columns to include in the output</p>
+            <p>5. Click <strong>"Map Data"</strong> to generate matches</p>
+            <p>6. Use filters and sorting to review results, then click <strong>"Export to Excel"</strong> to download</p>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="input-section">
+            <div class="input-box">
+                <label for="sourceFile"><span class="icon icon-folder"></span>Source File</label>
+                <div class="file-upload-area" id="sourceUploadArea" onclick="document.getElementById('sourceFile').click();">
+                    <p><span class="icon icon-file"></span>Click to upload or drag & drop</p>
+                    <p>CSV, XLSX, XLS, XLSM, XLSB, XLTX, XLTM</p>
+                </div>
+                <input type="file" id="sourceFile" accept=".csv,.xlsx,.xls,.xlsm,.xlsb,.xltx,.xltm" onchange="handleFileSelect('source', this.files[0]);">
+                <div class="file-info" id="sourceFileInfo" style="display: none;"></div>
+            </div>
+            <div class="input-box">
+                <label for="targetFile"><span class="icon icon-network"></span>Target File</label>
+                <div class="file-upload-area" id="targetUploadArea" onclick="document.getElementById('targetFile').click();">
+                    <p><span class="icon icon-file"></span>Click to upload or drag & drop</p>
+                    <p>CSV, XLSX, XLS, XLSM, XLSB, XLTX, XLTM</p>
+                </div>
+                <input type="file" id="targetFile" accept=".csv,.xlsx,.xls,.xlsm,.xlsb,.xltx,.xltm" onchange="handleFileSelect('target', this.files[0]);">
+                <div class="file-info" id="targetFileInfo" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Windows 95 Loading Bar -->
+        <div class="loading-modal" id="loadingModal">
+            <div class="loading-dialog">
+                <div class="loading-titlebar">
+                    <div>Processing</div>
+                    <div class="modal-controls">
+                        <div class="modal-control-button" onclick="cancelMapping()" title="Cancel">×</div>
+                    </div>
+                </div>
+                <div class="loading-content">
+                    <div class="loading-icon">!</div>
+                    <div class="loading-text-area">
+                        <div class="loading-message" id="loadingMessage">Mapping data...</div>
+                        <div class="loading-progress-container">
+                            <div class="loading-progress-segments" id="loadingSegments"></div>
+                        </div>
+                        <div class="loading-buttons">
+                            <button onclick="cancelMapping()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column Selection Modal Dialog -->
+        <div class="modal-overlay" id="columnSelectionModal">
+            <div class="modal-dialog">
+                <div class="modal-titlebar">
+                    <div class="modal-titlebar-text"><span class="icon icon-folder"></span>Configure Matching Columns</div>
+                    <div class="modal-controls">
+                        <div class="modal-control-button" onclick="closeColumnModal()" title="Close">×</div>
+                    </div>
+                </div>
+                <div class="modal-content">
+                    <div class="modal-section">
+                        <div class="modal-section-title"><span class="icon icon-file"></span>Source File</div>
+                        <div class="column-selection-grid">
+                            <div class="column-selector">
+                                <div class="sheet-selector" id="sourceSheetSelector" style="display: none;">
+                                    <label>Sheet:</label>
+                                    <select id="sourceSheetSelect" onchange="handleSheetChange('source')"></select>
+                                </div>
+                                <label>Match Column (Source):</label>
+                                <select id="sourceMatchColumn" onchange="handleMatchColumnChange('source')">
+                                    <option value="">-- Select Column --</option>
+                                </select>
+                                <div class="helper-text">Used to compare records and compute confidence.</div>
+                                <label style="margin-top: 10px;">Reference Columns (Optional):</label>
+                                <div class="helper-text">Included in output for context; not used for matching.</div>
+                                <div class="reference-columns" id="sourceReferenceColumns"></div>
+                                <label style="margin-top: 16px;">Output Column Order:</label>
+                                <div class="helper-text">Controls export/results column order. Match column is required.</div>
+                                <div class="output-order-container">
+                                    <div class="output-order-list" id="sourceOutputOrderList"></div>
+                                    <div class="output-order-buttons">
+                                        <button type="button" class="order-button" onclick="moveColumnUp('source')">▲ Move Up</button>
+                                        <button type="button" class="order-button" onclick="moveColumnDown('source')">▼ Move Down</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title"><span class="icon icon-network"></span>Target File</div>
+                        <div class="column-selection-grid">
+                            <div class="column-selector">
+                                <div class="sheet-selector" id="targetSheetSelector" style="display: none;">
+                                    <label>Sheet:</label>
+                                    <select id="targetSheetSelect" onchange="handleSheetChange('target')"></select>
+                                </div>
+                                <label>Match Column (Target):</label>
+                                <select id="targetMatchColumn" onchange="handleMatchColumnChange('target')">
+                                    <option value="">-- Select Column --</option>
+                                </select>
+                                <div class="helper-text">Used to compare records and compute confidence.</div>
+                                <label style="margin-top: 10px;">Reference Columns (Optional):</label>
+                                <div class="helper-text">Included in output for context; not used for matching.</div>
+                                <div class="reference-columns" id="targetReferenceColumns"></div>
+                                <label style="margin-top: 16px;">Output Column Order:</label>
+                                <div class="helper-text">Controls export/results column order. Match column is required.</div>
+                                <div class="output-order-container">
+                                    <div class="output-order-list" id="targetOutputOrderList"></div>
+                                    <div class="output-order-buttons">
+                                        <button type="button" class="order-button" onclick="moveColumnUp('target')">▲ Move Up</button>
+                                        <button type="button" class="order-button" onclick="moveColumnDown('target')">▼ Move Down</button>
+                            </div>
+                        </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-buttons">
+                        <button onclick="closeColumnModal()">Cancel</button>
+                        <button id="confirmColumnsButton" onclick="confirmColumnSelection()" disabled>OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="button-section">
+            <button id="mapButton" onclick="handleRunMapping()" disabled><span class="icon icon-check"></span>Run Mapping</button>
+            <button id="exportButton" onclick="exportToExcel()" disabled style="display: none;">📊 Export to Excel</button>
+            <button id="selectColumnsButton" onclick="openColumnModal()" style="display: none;"><span class="icon icon-folder"></span>Select Columns</button>
+        </div>
+
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <div class="results-header">
+                <div class="results-title"><span class="icon icon-computer"></span>Mapping Results</div>
+                <div class="stats" id="stats"></div>
+            </div>
+            
+            <!-- Metrics Summary Box -->
+            <div class="metrics-box" id="metricsBox">
+                <div class="metrics-title"><span class="icon icon-info"></span>Key Metrics</div>
+                <div class="metrics-grid" id="metricsGrid">
+                    <!-- Metrics will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- Results Toolbar -->
+            <div class="results-toolbar">
+                <div class="toolbar-group">
+                    <label>View:</label>
+                    <button class="toolbar-button active" data-filter="all" onclick="filterResults('all')">All</button>
+                    <button class="toolbar-button" data-filter="exact" onclick="filterResults('exact')">Exact Matches</button>
+                    <button class="toolbar-button" data-filter="review" onclick="filterResults('review')">Needs Review</button>
+                    <button class="toolbar-button" data-filter="none" onclick="filterResults('none')">No Match</button>
+                </div>
+                <div class="toolbar-group">
+                    <label>Sort by:</label>
+                    <select id="sortBySelect" onchange="sortResults()">
+                        <option value="confidence-desc">Confidence (High to Low)</option>
+                        <option value="confidence-asc">Confidence (Low to High)</option>
+                        <option value="source">Source Item</option>
+                        <option value="target">Target Item</option>
+                    </select>
+                </div>
+            </div>
+            
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Source Item</th>
+                        <th>Target Item</th>
+                        <th>Confidence Level</th>
+                        <th>Confidence %</th>
+                        <th>Match Reason</th>
+                        <th>2nd Best Match</th>
+                        <th>3rd Best Match</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="status-bar" id="statusBar">
+            <div class="status-left">
+                <span id="statusText">Ready</span>
+            </div>
+            <div class="status-right">
+                <span id="fileStatus">No files loaded</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ELI5: These are like storage boxes that hold your data
+        // Think of them as labeled containers where we keep the information from your files
+        let sourceWorkbook = null;  // Stores all sheets from source file
+        let targetWorkbook = null;  // Stores all sheets from target file
+        let sourceData = null;      // Current selected sheet data
+        let targetData = null;      // Current selected sheet data
+        let sourceColumns = { id: null, name: null, references: [], outputOrder: [] };
+        let targetColumns = { id: null, name: null, references: [], outputOrder: [] };
+        let mappingResults = [];
+        let rawResults = [];
+        let filteredResults = [];
+        let sortedResults = [];
+        let currentFilter = 'all';
+        let currentSort = 'confidence-desc';
+        let selectedOrderItem = { type: null, index: -1 };
+        
+        // Minimum confidence threshold for a match to be considered valid
+        // Scores below this threshold will be marked as "no match"
+        // Set to 0.47 (47%) - matches below this confidence are rejected
+        const MIN_MATCH_CONFIDENCE_THRESHOLD = 0.47;
+
+        // ELI5: This function reads your file and stores all the sheets
+        // Like reading a book and keeping track of all the pages
+        function parseFile(file, callback) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const fileExtension = file.name.split('.').pop().toLowerCase();
+                    
+                    if (fileExtension === 'csv') {
+                        // ELI5: CSV files are like a table written in plain text
+                        const text = e.target.result;
+                        const lines = text.split('\n').filter(line => line.trim());
+                        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                        
+                        const rows = [];
+                        for (let i = 1; i < lines.length; i++) {
+                            const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                            if (values.length === headers.length && values.some(v => v)) {
+                                const row = {};
+                                headers.forEach((header, index) => {
+                                    row[header] = values[index] || '';
+                                });
+                                rows.push(row);
+                            }
+                        }
+                        
+                        callback(null, {
+                            type: 'csv',
+                            sheets: { 'Sheet1': { headers, rows } },
+                            sheetNames: ['Sheet1']
+                        });
+                    } else {
+                        // ELI5: Excel files can have multiple sheets (like multiple pages)
+                        // We read all of them so you can choose which one to use
+                        
+                        // Check if XLSX library is available
+                        if (typeof XLSX === 'undefined') {
+                            throw new Error('Excel library not loaded. Please refresh the page.');
+                        }
+                        
+                        const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                        const sheets = {};
+                        const sheetNames = workbook.SheetNames;
+                        
+                        for (let sheetName of sheetNames) {
+                            const sheet = workbook.Sheets[sheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                            
+                            if (jsonData.length === 0) continue;
+                            
+                            const headers = jsonData[0].map(h => String(h || '').trim()).filter(h => h);
+                            const rows = [];
+                            
+                            for (let i = 1; i < jsonData.length; i++) {
+                                const values = jsonData[i].map(v => String(v || '').trim());
+                                if (values.some(v => v)) {
+                                    const row = {};
+                                    headers.forEach((header, index) => {
+                                        row[header] = values[index] || '';
+                                    });
+                                    rows.push(row);
+                                }
+                            }
+                            
+                            sheets[sheetName] = { headers, rows };
+                        }
+                        
+                        callback(null, {
+                            type: 'excel',
+                            sheets: sheets,
+                            sheetNames: sheetNames
+                        });
+                    }
+                } catch (error) {
+                    callback(error, null);
+                }
+            };
+            
+            // Check file extension to determine how to read it
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+            const excelExtensions = ['xlsx', 'xls', 'xlsm', 'xlsb', 'xltx', 'xltm'];
+            
+            if (fileExtension === 'csv') {
+                reader.readAsText(file);
+            } else if (excelExtensions.includes(fileExtension)) {
+                reader.readAsBinaryString(file);
+            } else {
+                callback(new Error(`Unsupported file type: .${fileExtension}. Please use CSV or Excel files (.csv, .xlsx, .xls, etc.)`), null);
+                return;
+            }
+        }
+
+        // ELI5: This function handles when you select a file
+        // Like a receptionist that takes your file and shows you what's inside
+        function handleFileSelect(type, file) {
+            try {
+                if (!file) {
+                    console.log('No file selected');
+                    return;
+                }
+                
+                console.log('File selected:', type, file.name);
+                showError('');
+                
+                parseFile(file, function(error, workbookData) {
+                    if (error) {
+                        console.error('Parse error:', error);
+                        showError(`Error reading ${type} file: ${error.message}`);
+                        return;
+                    }
+                    
+                    // Store the workbook (all sheets)
+                    if (type === 'source') {
+                        sourceWorkbook = workbookData;
+                        // Reset source columns when new file is uploaded
+                        sourceColumns = { id: null, name: null, references: [], outputOrder: [] };
+                        // Load first sheet by default
+                        loadSheet('source', workbookData.sheetNames[0]);
+                    } else {
+                        targetWorkbook = workbookData;
+                        // Reset target columns when new file is uploaded
+                        targetColumns = { id: null, name: null, references: [], outputOrder: [] };
+                        // Load first sheet by default
+                        loadSheet('target', workbookData.sheetNames[0]);
+                    }
+                    
+                    // Update UI
+                    updateFileInfo(type, file.name, workbookData);
+                    updateColumnSelectors(type, workbookData);
+                });
+            } catch (err) {
+                console.error('Error in handleFileSelect:', err);
+                showError(`Error: ${err.message}`);
+            }
+        }
+
+        // ELI5: This function loads a specific sheet from the workbook
+        // Like turning to a specific page in a book
+        function loadSheet(type, sheetName) {
+            const workbook = type === 'source' ? sourceWorkbook : targetWorkbook;
+            if (!workbook || !workbook.sheets[sheetName]) return;
+            
+            const sheetData = workbook.sheets[sheetName];
+            
+            if (sheetData.rows.length === 0) {
+                showError(`${type} sheet "${sheetName}" appears to be empty`);
+                return;
+            }
+            
+            if (type === 'source') {
+                sourceData = sheetData;
+            } else {
+                targetData = sheetData;
+            }
+            
+            // Update column dropdowns (preserve current match column selection if any)
+            const matchSelect = document.getElementById(`${type}MatchColumn`);
+            const currentMatch = matchSelect ? matchSelect.value : '';
+            updateColumnDropdowns(type, sheetData.headers, currentMatch);
+        }
+
+        // ELI5: This function updates the file info display
+        // Like updating a status board
+        function updateFileInfo(type, fileName, workbookData) {
+            const fileInfo = document.getElementById(`${type}FileInfo`);
+            const uploadArea = document.getElementById(`${type}UploadArea`);
+            const totalRows = Object.values(workbookData.sheets).reduce((sum, sheet) => sum + sheet.rows.length, 0);
+            
+            fileInfo.style.display = 'block';
+            fileInfo.innerHTML = `<strong>File:</strong> ${fileName}<br><strong>Sheets:</strong> ${workbookData.sheetNames.length}<br><strong>Total Rows:</strong> ${totalRows}`;
+            
+            uploadArea.style.borderColor = '#10b981';
+            uploadArea.style.background = '#f0fdf4';
+            
+            // Update status
+            updateStatus('Ready', true);
+            
+            // Update step indicator when files are loaded
+            if (sourceWorkbook && targetWorkbook) {
+                updateStepIndicator(2); // Enable Configure Matching step
+            }
+        }
+
+        // ELI5: This function sets up the sheet selector dropdown
+        // Like creating a menu to choose which page of a book to read
+        function updateColumnSelectors(type, workbookData) {
+            const sheetSelector = document.getElementById(`${type}SheetSelector`);
+            const sheetSelect = document.getElementById(`${type}SheetSelect`);
+            
+            // Show sheet selector only if there are multiple sheets
+            if (workbookData.sheetNames.length > 1) {
+                sheetSelector.style.display = 'block';
+                sheetSelect.innerHTML = '';
+                workbookData.sheetNames.forEach(sheetName => {
+                    const option = document.createElement('option');
+                    option.value = sheetName;
+                    option.textContent = sheetName;
+                    sheetSelect.appendChild(option);
+                });
+            } else {
+                sheetSelector.style.display = 'none';
+            }
+            
+            // Show "Select Columns" button if both files are uploaded
+            if (sourceWorkbook && targetWorkbook) {
+                document.getElementById('selectColumnsButton').style.display = 'inline-block';
+                updateStepIndicator(2); // Enable Configure Matching step
+                // Auto-open modal when both files are uploaded (no auto-selection)
+                setTimeout(() => {
+                    openColumnModal();
+                }, 300);
+            }
+        }
+
+        // ELI5: This function updates the column dropdown menus
+        // Like filling a menu with all the available options
+        function updateColumnDropdowns(type, headers, currentMatchColumnValue = null) {
+            const matchSelect = document.getElementById(`${type}MatchColumn`);
+            const referenceContainer = document.getElementById(`${type}ReferenceColumns`);
+            
+            // Get the current match column value BEFORE clearing (if not provided as parameter)
+            const currentMatchColumn = currentMatchColumnValue !== null ? currentMatchColumnValue : (matchSelect ? matchSelect.value : '');
+            
+            // Clear existing options
+            matchSelect.innerHTML = '<option value="">-- Select Column --</option>';
+            referenceContainer.innerHTML = '';
+            
+            // Add all columns as options for match column
+            headers.forEach(header => {
+                const option = document.createElement('option');
+                option.value = header;
+                option.textContent = header;
+                if (header === currentMatchColumn) {
+                    option.selected = true;
+                }
+                matchSelect.appendChild(option);
+            });
+            
+            // Create checkboxes for reference columns - start with all unchecked
+            
+            headers.forEach(header => {
+                const item = document.createElement('div');
+                item.className = 'reference-column-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `${type}Ref_${header}`;
+                checkbox.value = header;
+                checkbox.checked = false; // Start unchecked - deterministic blank state
+                checkbox.disabled = false;
+                
+                // If this is the match column, check and disable ONLY the checkbox
+                if (header === currentMatchColumn && currentMatchColumn) {
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                    item.classList.add('match-column-locked');
+                }
+                
+                checkbox.onchange = function() { 
+                    // When reference column is checked/unchecked, update output order immediately
+                    updateOutputOrderLists(); 
+                    updateMatchingSummary(); 
+                };
+                const label = document.createElement('label');
+                label.htmlFor = checkbox.id;
+                label.textContent = header;
+                if (header === currentMatchColumn && currentMatchColumn) {
+                    // Add subtle indicator that this is the match column
+                    const matchIndicator = document.createElement('span');
+                    matchIndicator.textContent = ' (Match)';
+                    matchIndicator.style.color = '#666666';
+                    matchIndicator.style.fontSize = '11px';
+                    matchIndicator.style.fontStyle = 'italic';
+                    matchIndicator.style.marginLeft = '4px';
+                    label.appendChild(matchIndicator);
+                }
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                referenceContainer.appendChild(item);
+            });
+            
+            checkColumnsSelected();
+            updateOutputOrderLists();
+        }
+        
+        // Handle match column change - updates reference columns and locks match column
+        // Unified logic for both source and target
+        function handleMatchColumnChange(type) {
+            const matchSelect = document.getElementById(`${type}MatchColumn`);
+            const newlySelected = matchSelect ? matchSelect.value : '';
+            const data = type === 'source' ? sourceData : targetData;
+            
+            if (!data || !data.headers) return;
+            
+            // Store which reference columns were checked before (excluding the old match column)
+            const prevMatchCheckbox = document.querySelector(`#${type}ReferenceColumns .match-column-locked input[type="checkbox"]`);
+            const previousMatchColumn = prevMatchCheckbox ? prevMatchCheckbox.value : null;
+            const checkedRefs = new Set();
+            document.querySelectorAll(`#${type}ReferenceColumns input[type="checkbox"]:checked`).forEach(cb => {
+                if (cb.value !== previousMatchColumn) {
+                    checkedRefs.add(cb.value);
+                }
+            });
+            // Previous match column should remain checked (it becomes a normal reference)
+            if (previousMatchColumn && previousMatchColumn !== newlySelected) {
+                checkedRefs.add(previousMatchColumn);
+            }
+            
+            // Rebuild the reference columns list with the new match column state
+            // Pass the newly selected match column so it gets checked and locked
+            updateColumnDropdowns(type, data.headers, newlySelected);
+            
+            // Set up the new match column checkbox (checked + disabled) and restore other checked refs
+            if (newlySelected) {
+                setTimeout(() => {
+                    // Lock the new match column (should already be checked by updateColumnDropdowns, but ensure it)
+                    const newMatchCheckbox = document.querySelector(`#${type}Ref_${newlySelected}`);
+                    if (newMatchCheckbox) {
+                        newMatchCheckbox.checked = true;
+                        newMatchCheckbox.disabled = true;
+                        newMatchCheckbox.parentElement.classList.add('match-column-locked');
+                    }
+                    
+                    // Restore previously checked reference columns (excluding the new match column)
+                    checkedRefs.forEach(ref => {
+                        if (ref !== newlySelected) {
+                            const refCheckbox = document.querySelector(`#${type}Ref_${ref}`);
+                            if (refCheckbox && !refCheckbox.disabled) {
+                                refCheckbox.checked = true;
+                            }
+                        }
+                    });
+                    
+                    // Update output order after restoring state
+                    updateOutputOrderLists();
+                }, 10);
+            }
+            
+            // Update output order and other UI elements
+            updateOutputOrderLists();
+            updateMatchingSummary();
+            checkColumnsSelected();
+        }
+        
+        // Update reference columns list when match column changes (legacy function - kept for compatibility)
+        function refreshReferenceColumns(type) {
+            // Main logic is now in handleMatchColumnChange
+            handleMatchColumnChange(type);
+        }
+
+        // ELI5: This function handles when you change which sheet to use
+        // Like turning to a different page in a book
+        function handleSheetChange(type) {
+            const sheetSelect = document.getElementById(`${type}SheetSelect`);
+            const selectedSheet = sheetSelect.value;
+            loadSheet(type, selectedSheet);
+        }
+
+        // ELI5: This function opens the column selection modal
+        // Like opening a pop-up window
+        function openColumnModal() {
+            if (!sourceWorkbook || !targetWorkbook) {
+                showError('Please upload both files first');
+                return;
+            }
+            document.getElementById('columnSelectionModal').classList.add('active');
+            // Initialize output order lists if columns are already selected
+            updateOutputOrderLists();
+        }
+
+        // ELI5: This function closes the column selection modal
+        function closeColumnModal() {
+            document.getElementById('columnSelectionModal').classList.remove('active');
+        }
+        
+        // Update step indicator based on current progress
+        function updateStepIndicator(activeStep) {
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const step3 = document.getElementById('step3');
+            const connector1 = document.getElementById('connector1');
+            const connector2 = document.getElementById('connector2');
+            
+            if (!step1 || !step2 || !step3) return; // Safety check
+            
+            // Reset all steps
+            [step1, step2, step3].forEach(step => {
+                step.classList.remove('active', 'completed', 'disabled');
+            });
+            [connector1, connector2].forEach(conn => {
+                if (conn) conn.classList.remove('active');
+            });
+            
+            // Step 1: Load Data
+            if (activeStep >= 1) {
+                if (activeStep > 1) {
+                    step1.classList.add('completed');
+                } else {
+                    step1.classList.add('active');
+                }
+            } else {
+                step1.classList.add('active');
+            }
+            
+            // Step 2: Configure Matching
+            if (activeStep >= 2) {
+                step2.classList.remove('disabled');
+                if (activeStep > 2) {
+                    step2.classList.add('completed');
+                    if (connector1) connector1.classList.add('active');
+                } else {
+                    step2.classList.add('active');
+                    if (connector1) connector1.classList.add('active');
+                }
+            } else {
+                step2.classList.add('disabled');
+            }
+            
+            // Step 3: Review Results
+            if (activeStep >= 3) {
+                step3.classList.remove('disabled');
+                step3.classList.add('active');
+                if (connector2) connector2.classList.add('active');
+            } else {
+                step3.classList.add('disabled');
+            }
+        }
+        
+        // Update readiness summary
+        function updateReadinessSummary() {
+            const summary = document.getElementById('readinessSummary');
+            if (!summary) return;
+            
+            if (sourceData && targetData && sourceColumns.id && targetColumns.id) {
+                const sourceRows = sourceData.rows ? sourceData.rows.length : 0;
+                const targetRows = targetData.rows ? targetData.rows.length : 0;
+                summary.textContent = `Ready to match ${sourceRows.toLocaleString()} source rows to ${targetRows.toLocaleString()} target rows.`;
+                summary.classList.add('visible');
+            } else {
+                summary.classList.remove('visible');
+            }
+        }
+        
+        // autoSelectDefaults removed - we want deterministic blank state on first open
+        
+        // Suggest best match column based on common patterns
+        function suggestMatchColumn(headers) {
+            if (!headers || headers.length === 0) return null;
+            
+            // Priority order for match column suggestions
+            const patterns = [
+                /name/i,
+                /title/i,
+                /description/i,
+                /company/i,
+                /account/i,
+                /customer/i,
+                /organization/i,
+                /entity/i
+            ];
+            
+            for (let pattern of patterns) {
+                for (let header of headers) {
+                    if (pattern.test(header)) {
+                        return header;
+                    }
+                }
+            }
+            
+            // If no pattern matches, return first non-ID column
+            for (let header of headers) {
+                if (!isIdLikeColumn(header)) {
+                    return header;
+                }
+            }
+            
+            // Fallback to first column
+            return headers[0];
+        }
+        
+        // Check if a column name looks like an ID
+        function isIdLikeColumn(header) {
+            if (!header) return false;
+            const lower = header.toLowerCase();
+            return /^id$/i.test(header) || 
+                   /id$/i.test(header) || 
+                   /^uuid$/i.test(header) ||
+                   /^guid$/i.test(header) ||
+                   /_id$/i.test(lower);
+        }
+        
+        // Handle Run Mapping button click
+        function handleRunMapping() {
+            // Check if configuration is complete
+            if (!sourceData || !targetData) {
+                showError('Please upload both files first');
+                return;
+            }
+            
+            if (!sourceColumns.id || !targetColumns.id) {
+                // Open config modal if not configured
+                openColumnModal();
+                showError('Please configure matching columns first');
+                return;
+            }
+            
+            // Run mapping
+            mapData();
+        }
+
+        // Unified helper function to update output order list for a single type (source or target)
+        function updateOutputOrderListForType(type) {
+            const matchSelect = document.getElementById(`${type}MatchColumn`);
+            const matchColumn = matchSelect ? matchSelect.value : '';
+            const referenceContainer = document.getElementById(`${type}ReferenceColumns`);
+            const checkedRefs = referenceContainer ? 
+                Array.from(referenceContainer.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(cb => cb.value) : [];
+            const orderList = document.getElementById(`${type}OutputOrderList`);
+            
+            if (!orderList) return;
+            
+            // Get original file order from headers
+            const data = type === 'source' ? sourceData : targetData;
+            const originalHeaders = data && data.headers ? data.headers : [];
+            
+            // Build ordered columns: all selected columns in their original file order
+            // This includes both the match column and reference columns
+            const allSelectedColumns = new Set();
+            if (matchColumn) {
+                allSelectedColumns.add(matchColumn);
+            }
+            checkedRefs.forEach(ref => {
+                allSelectedColumns.add(ref);
+            });
+            
+            // Add all selected columns in their original file order
+            const orderedColumns = [];
+            originalHeaders.forEach(header => {
+                if (allSelectedColumns.has(header)) {
+                    orderedColumns.push(header);
+                }
+            });
+            
+            // Render the list
+            orderList.innerHTML = '';
+            orderedColumns.forEach((col, index) => {
+                const item = document.createElement('div');
+                const isMatchColumn = col === matchColumn;
+                item.className = isMatchColumn ? 'output-order-item match-column' : 'output-order-item';
+                item.dataset.index = index;
+                item.dataset.column = col;
+                item.textContent = col;
+                item.onclick = function() {
+                    selectOrderItem(type, index);
+                };
+                orderList.appendChild(item);
+            });
+            
+            // Auto-select first item if list is not empty
+            if (orderedColumns.length > 0) {
+                selectOrderItem(type, 0);
+            }
+        }
+        
+        // Update output order lists based on match column and reference columns
+        // Uses unified helper for both source and target to ensure consistency
+        function updateOutputOrderLists() {
+            updateOutputOrderListForType('source');
+            updateOutputOrderListForType('target');
+        }
+        
+        // Update output order when checkboxes change
+        function updateOutputOrderFromCheckboxes(type) {
+            // This is called when a checkbox in output order is toggled
+            // We could potentially reorder or filter the list here if needed
+            // For now, just ensure the state is consistent
+            updateMatchingSummary();
+        }
+
+        // Select an item in the output order list
+        function selectOrderItem(type, index) {
+            const list = document.getElementById(`${type}OutputOrderList`);
+            if (list) {
+                const items = Array.from(list.children);
+                if (index >= 0 && index < items.length) {
+                    selectedOrderItem = { type: type, index: index };
+                    items.forEach((item, i) => {
+                        if (i === index) {
+                            item.classList.add('selected');
+                        } else {
+                            item.classList.remove('selected');
+                        }
+                    });
+                }
+            }
+        }
+
+        // Move selected column up in order
+        function moveColumnUp(type) {
+            const list = document.getElementById(`${type}OutputOrderList`);
+            if (!list || selectedOrderItem.type !== type || selectedOrderItem.index <= 0) return;
+            
+            const items = Array.from(list.children);
+            const selectedIndex = selectedOrderItem.index;
+            if (selectedIndex <= 0) return;
+            
+            const item = items[selectedIndex];
+            const prevItem = items[selectedIndex - 1];
+            
+            // Update dataset indices
+            item.dataset.index = selectedIndex - 1;
+            prevItem.dataset.index = selectedIndex;
+            
+            list.insertBefore(item, prevItem);
+            selectOrderItem(type, selectedIndex - 1);
+            updateMatchingSummary();
+        }
+
+        // Move selected column down in order
+        function moveColumnDown(type) {
+            const list = document.getElementById(`${type}OutputOrderList`);
+            if (!list || selectedOrderItem.type !== type || selectedOrderItem.index < 0) return;
+            
+            const items = Array.from(list.children);
+            const selectedIndex = selectedOrderItem.index;
+            if (selectedIndex >= items.length - 1) return;
+            
+            const item = items[selectedIndex];
+            const nextItem = items[selectedIndex + 1];
+            
+            // Update dataset indices
+            item.dataset.index = selectedIndex + 1;
+            nextItem.dataset.index = selectedIndex;
+            
+            list.insertBefore(nextItem, item);
+            selectOrderItem(type, selectedIndex + 1);
+            updateMatchingSummary();
+        }
+
+        // Update matching summary display (summary box removed, function kept for compatibility)
+        function updateMatchingSummary() {
+            // Summary box has been removed per user request
+            // Function kept for compatibility with other code that calls updateMatchingSummary()
+        }
+
+        // ELI5: This function confirms the column selection
+        function confirmColumnSelection() {
+            const sourceMatch = document.getElementById('sourceMatchColumn').value;
+            const targetMatch = document.getElementById('targetMatchColumn').value;
+            
+            if (sourceMatch && targetMatch && sourceData && targetData) {
+                // Store selected columns (for backward compatibility with mapping code)
+                sourceColumns.id = sourceMatch;
+                sourceColumns.name = sourceMatch; // Use same column for both
+                targetColumns.id = targetMatch;
+                targetColumns.name = targetMatch;
+                
+                // Store reference columns
+                sourceColumns.references = Array.from(document.querySelectorAll('#sourceReferenceColumns input[type="checkbox"]:checked')).map(cb => cb.value);
+                targetColumns.references = Array.from(document.querySelectorAll('#targetReferenceColumns input[type="checkbox"]:checked')).map(cb => cb.value);
+                
+                // Store output order (all items in order, as they're all selected)
+                const sourceOrderList = document.getElementById('sourceOutputOrderList');
+                const targetOrderList = document.getElementById('targetOutputOrderList');
+                sourceColumns.outputOrder = sourceOrderList ? Array.from(sourceOrderList.children)
+                    .map(item => item.textContent.trim())
+                    .filter(text => text.length > 0) : [];
+                targetColumns.outputOrder = targetOrderList ? Array.from(targetOrderList.children)
+                    .map(item => item.textContent.trim())
+                    .filter(text => text.length > 0) : [];
+                
+                // If output order is empty, set default (match column first, then references)
+                if (sourceColumns.outputOrder.length === 0) {
+                    sourceColumns.outputOrder = sourceMatch ? [sourceMatch, ...sourceColumns.references] : [];
+                }
+                if (targetColumns.outputOrder.length === 0) {
+                    targetColumns.outputOrder = targetMatch ? [targetMatch, ...targetColumns.references] : [];
+                }
+                
+                // Update status
+                updateStatus(`Ready to map. Matching: ${sourceMatch} → ${targetMatch}`, true);
+                
+                // Update readiness summary and step indicator
+                updateReadinessSummary();
+                updateStepIndicator(2); // Still on Configure step, but ready to proceed
+                
+                // Close modal and enable map button
+                closeColumnModal();
+                document.getElementById('mapButton').disabled = false;
+            } else {
+                showError('Please select match columns for both source and target files');
+            }
+        }
+
+        // ELI5: This function checks if all columns are selected
+        // Like checking if you have all the ingredients before cooking
+        function checkColumnsSelected() {
+            const sourceMatch = document.getElementById('sourceMatchColumn').value;
+            const targetMatch = document.getElementById('targetMatchColumn').value;
+            
+            const confirmButton = document.getElementById('confirmColumnsButton');
+            
+            if (sourceMatch && targetMatch && sourceData && targetData) {
+                confirmButton.disabled = false;
+            } else {
+                confirmButton.disabled = true;
+            }
+        }
+
+        // ELI5: This function calculates how similar two pieces of text are
+        // ELI5: This function calculates how similar two pieces of text are
+        // Uses multiple methods and takes the best score
+        function calculateSimilarity(str1, str2) {
+            str1 = String(str1 || '').toLowerCase().trim();
+            str2 = String(str2 || '').toLowerCase().trim();
+
+            if (str1 === str2) return 1.0;
+            if (str1.length === 0 || str2.length === 0) return 0;
+
+            const longer = str1.length > str2.length ? str1 : str2;
+            const shorter = str1.length > str2.length ? str2 : str1;
+            
+            if (longer.length === 0) return 1.0;
+
+            // Method 1: Check if one contains the other (substring match)
+            // This handles cases like "Foley" in "Foley Services", "Hertz" in "Hertz Corporation"
+            // Use full normalization to handle camelCase, domains, diacritics, etc.
+            const normalizedShorter = normalizeText(shorter);
+            const normalizedLonger = normalizeText(longer);
+            
+            // Also check character-level substring (removing spaces) for cases like "DevReady" vs "Dev Ready"
+            const charLevelShorter = normalizedShorter.replace(/\s+/g, '');
+            const charLevelLonger = normalizedLonger.replace(/\s+/g, '');
+            
+            if ((normalizedShorter.length >= 3 && normalizedLonger.includes(normalizedShorter)) ||
+                (charLevelShorter.length >= 3 && charLevelLonger.includes(charLevelShorter))) {
+                // If shorter is contained in longer, give high score based on ratio
+                const containmentScore = normalizedShorter.length / normalizedLonger.length;
+                // Boost score if containment is high (shorter name is most of longer name)
+                if (containmentScore >= 0.7) return Math.min(0.95, 0.85 + (containmentScore - 0.7) * 0.5);
+                if (containmentScore >= 0.5) return Math.min(0.9, 0.75 + (containmentScore - 0.5) * 0.75);
+                if (containmentScore >= 0.3) return Math.min(0.85, 0.65 + (containmentScore - 0.3) * 1.0);
+            }
+
+            // Method 2: Word-level matching with proper punctuation handling
+            // Use normalizeText to get consistent normalization (handles camelCase, domains, diacritics)
+            const normalized1 = normalizeText(str1);
+            const normalized2 = normalizeText(str2);
+            
+            // Split into words after normalization
+            const normalizeWords = (normalized) => {
+                return normalized
+                    .split(/\s+/)
+                    .filter(w => w.length > 1); // Filter single chars
+            };
+            
+            const words1 = normalizeWords(normalized1);
+            const words2 = normalizeWords(normalized2);
+            
+            let wordScore = 0;
+            if (words1.length > 0 && words2.length > 0) {
+                // FAST: Use Set for O(1) lookups
+                const words2Set = new Set(words2);
+                const words1Set = new Set(words1);
+                
+                // Count exact word matches
+                let exactMatches = 0;
+                for (let w of words1) {
+                    if (words2Set.has(w)) exactMatches++;
+                }
+                
+                // Count plural matches (BIDIRECTIONAL - check both directions)
+                // Track which words are already matched to avoid double-counting
+                const matchedWords2 = new Set();
+                let pluralMatches = 0;
+                
+                // Helper to check if two words are plural variants
+                const arePluralVariants = (w1, w2) => {
+                    if (w1 === w2) return true;
+                    if (w1 + 's' === w2 || w2 + 's' === w1) return true;
+                    if (w1 + 'es' === w2 || w2 + 'es' === w1) return true;
+                    if (w1.endsWith('s') && w1.slice(0, -1) === w2) return true;
+                    if (w2.endsWith('s') && w2.slice(0, -1) === w1) return true;
+                    if (w1.endsWith('es') && w1.slice(0, -2) === w2) return true;
+                    if (w2.endsWith('es') && w2.slice(0, -2) === w1) return true;
+                    return false;
+                };
+                
+                // Check for plural matches (avoid double-counting exact matches)
+                for (let w1 of words1) {
+                    if (words2Set.has(w1)) continue; // Already counted as exact
+                    
+                    for (let w2 of words2) {
+                        if (matchedWords2.has(w2)) continue; // Already matched
+                        if (arePluralVariants(w1, w2)) {
+                            pluralMatches++;
+                            matchedWords2.add(w2);
+                            break;
+                        }
+                    }
+                }
+                
+                const totalMatches = exactMatches + pluralMatches;
+                const minWords = Math.min(words1.length, words2.length);
+                const maxWords = Math.max(words1.length, words2.length);
+                
+                // Helper to check if word exists in a set (exact or plural variant)
+                const wordExistsInSet = (w, wordSet) => {
+                    if (wordSet.has(w)) return true;
+                    if (wordSet.has(w + 's') || wordSet.has(w + 'es')) return true;
+                    if (w.endsWith('s') && wordSet.has(w.slice(0, -1))) return true;
+                    if (w.endsWith('es') && wordSet.has(w.slice(0, -2))) return true;
+                    return false;
+                };
+                
+                // Check for subset match (e.g., "Araona Labor" in "ARAONA Labor Logistics, LLC")
+                const shorter = words1.length <= words2.length ? words1 : words2;
+                const longer = words1.length > words2.length ? words1 : words2;
+                const longerSet = new Set(longer);
+                
+                // Check if all words from shorter are in longer (allowing for plurals)
+                let subsetMatch = true;
+                for (let w of shorter) {
+                    if (!wordExistsInSet(w, longerSet)) {
+                        subsetMatch = false;
+                        break;
+                    }
+                }
+                
+                // Subset match - allow single word matches (e.g., "Foley" in "Foley Services")
+                if (subsetMatch && shorter.length >= 1) {
+                    // Score based on coverage - single word gets high score if it's a significant word
+                    if (shorter.length === 1 && shorter[0].length >= 4) {
+                        // Single significant word match (e.g., "Foley", "Hertz", "Needle")
+                        wordScore = 0.88; // High confidence for single-word company name matches
+                    } else {
+                        // Multi-word subset match
+                        wordScore = Math.min(0.95, 0.75 + (shorter.length / longer.length) * 0.2);
+                    }
+                } else {
+                    // FAST: Legal suffix check (only if both have suffixes)
+                    const legalSuffixes = new Set(['inc', 'llc', 'ltd', 'corp', 'corporation', 'co', 'company', 'lp', 'llp']);
+                    const w1HasLegal = words1.some(w => legalSuffixes.has(w));
+                    const w2HasLegal = words2.some(w => legalSuffixes.has(w));
+                    
+                    if (w1HasLegal && w2HasLegal && totalMatches >= minWords - 1) {
+                        // Check if non-legal words match (allowing plurals)
+                        const w1NonLegal = words1.filter(w => !legalSuffixes.has(w));
+                        const w2NonLegal = words2.filter(w => !legalSuffixes.has(w));
+                        if (w1NonLegal.length === w2NonLegal.length && w1NonLegal.length > 0) {
+                            const w2NonLegalSet = new Set(w2NonLegal);
+                            let allMatch = true;
+                            for (let w of w1NonLegal) {
+                                if (!wordExistsInSet(w, w2NonLegalSet)) {
+                                    allMatch = false;
+                                    break;
+                                }
+                            }
+                            if (allMatch) {
+                                return 0.93; // Same business, different entity type
+                            }
+                        }
+                    }
+                    
+                    // Calculate word score
+                    if (totalMatches >= minWords && maxWords - minWords <= 1) {
+                        // All or nearly all words match
+                        wordScore = totalMatches === minWords && minWords === maxWords ? 0.92 : 0.88;
+                    } else if (totalMatches > 0) {
+                        // Normal case: ratio of matches to unique words
+                        const allWords = new Set([...words1, ...words2]);
+                        wordScore = totalMatches / allWords.size;
+                        
+                        // Boost for single-word matches that are significant (e.g., "Foley" matches "Foley Services")
+                        if (minWords === 1 && totalMatches === 1 && words1[0].length >= 4 && words2.length > 1) {
+                            // Single significant word in source matches a word in longer target
+                            wordScore = Math.max(wordScore, 0.85);
+                        }
+                    } else {
+                        wordScore = 0;
+                    }
+                }
+                
+                // Early return for high scores (skip expensive Levenshtein)
+                if (wordScore >= 0.8) return Math.min(0.98, wordScore + 0.1);
+                if (wordScore >= 0.7) return Math.min(0.92, wordScore + 0.1);
+                if (wordScore >= 0.6) return Math.min(0.9, wordScore + 0.15);
+                if (wordScore >= 0.5) return wordScore; // Skip Levenshtein for medium scores
+            }
+            
+            // Only calculate Levenshtein if word score is very low and strings are reasonably short
+            // For long strings, Levenshtein is too expensive
+            const maxStrLength = Math.max(str1.length, str2.length);
+            if (wordScore === 0 && maxStrLength <= 50) {
+                // Method 3: Character-level Levenshtein distance (only for short strings)
+            const distance = [];
+            for (let i = 0; i <= longer.length; i++) {
+                distance[i] = [i];
+            }
+            for (let j = 0; j <= shorter.length; j++) {
+                distance[0][j] = j;
+            }
+
+            for (let i = 1; i <= longer.length; i++) {
+                for (let j = 1; j <= shorter.length; j++) {
+                    if (longer[i - 1] === shorter[j - 1]) {
+                        distance[i][j] = distance[i - 1][j - 1];
+                    } else {
+                        distance[i][j] = Math.min(
+                            distance[i - 1][j] + 1,
+                            distance[i][j - 1] + 1,
+                            distance[i - 1][j - 1] + 1
+                        );
+                    }
+                }
+            }
+
+                const levenshteinDistance = distance[longer.length][shorter.length];
+                const levenshteinScore = (maxStrLength - levenshteinDistance) / maxStrLength;
+            
+                if (levenshteinScore >= 0.9) {
+                    return Math.min(0.95, levenshteinScore + 0.05);
+            }
+            return levenshteinScore;
+            }
+            
+            // For long strings or if word score exists, return word score or low default
+            return wordScore || 0.2; // Default low score if no match
+        }
+
+        // ELI5: This function finds the best match for a source row
+        // ELI5: This function normalizes text for better matching
+        // Like cleaning up text to make it easier to compare
+        // IMPORTANT: Normalizes suffixes (Inc. = Inc) but keeps them, so "Supreme Green Inc." matches "Supreme Green Inc" but NOT "Supreme Green"
+        function normalizeText(text) {
+            if (!text) return '';
+            let normalized = String(text).trim();
+            
+            // Split camelCase and PascalCase words BEFORE lowercasing
+            // "DevReady" -> "Dev Ready", "aiLevelUp" -> "ai Level Up", "BarkBox" -> "Bark Box"
+            normalized = normalized.replace(/([a-z])([A-Z])/g, '$1 $2');
+            
+            // Now lowercase everything
+            normalized = normalized.toLowerCase();
+            
+            // Normalize diacritics (accents) - "Nuitée" becomes "Nuitee"
+            normalized = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            
+            // Remove domain extensions (before other punctuation removal)
+            normalized = normalized.replace(/\.(com|net|org|io|co|health|ai|dev)/gi, ' ');
+            
+            // Normalize common business suffixes (make them consistent but keep them)
+            // "Inc." and "Inc" both become " inc" (with space)
+            // "LLC" and "L.L.C." both become " llc"
+            normalized = normalized.replace(/\s*inc\.?\s*$/gi, ' inc');
+            normalized = normalized.replace(/\s*llc\.?\s*$/gi, ' llc');
+            normalized = normalized.replace(/\s*ltd\.?\s*$/gi, ' ltd');
+            normalized = normalized.replace(/\s*corp\.?\s*$/gi, ' corp');
+            normalized = normalized.replace(/\s*corporation\.?\s*$/gi, ' corporation');
+            normalized = normalized.replace(/\s*co\.?\s*$/gi, ' co');
+            normalized = normalized.replace(/\s*company\.?\s*$/gi, ' company');
+            normalized = normalized.replace(/\s*lp\.?\s*$/gi, ' lp');
+            normalized = normalized.replace(/\s*llp\.?\s*$/gi, ' llp');
+            
+            // Remove other punctuation (but keep the normalized suffixes)
+            normalized = normalized.replace(/[.,;:!?'"()\[\]{}]/g, '');
+            
+            // Normalize whitespace (multiple spaces to single)
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            
+            return normalized;
+        }
+
+        // ELI5: This function generates a reason for why a match was made
+        // Like explaining why you matched two things together
+        function generateMatchReason(sourceName, targetName, score, normalizedSource, normalizedTarget) {
+            const source = String(sourceName || '').trim();
+            const target = String(targetName || '').trim();
+            
+            // Check for exact string match (case-insensitive)
+            if (source.toLowerCase() === target.toLowerCase()) {
+                return 'Exact match';
+            }
+            
+            // Check for exact normalized match (handles punctuation, spacing differences)
+            if (normalizedSource === normalizedTarget) {
+                return 'Exact match (normalized: punctuation/spacing differs)';
+            }
+            
+            // Exact match by score
+            if (score === 1.0) {
+                return 'Perfect match';
+            }
+            
+            // Check for common abbreviations and patterns (before generic similarity)
+            const sourceWords = normalizedSource.split(' ').filter(w => w.length > 0);
+            const targetWords = normalizedTarget.split(' ').filter(w => w.length > 0);
+            
+            // Check if one contains the other (substring match) - very specific reason
+            const sourceInTarget = normalizedTarget.includes(normalizedSource);
+            const targetInSource = normalizedSource.includes(normalizedTarget);
+            if (sourceInTarget || targetInSource) {
+                if (score >= 0.7) {
+                    const shorter = sourceInTarget ? source : target;
+                    const longer = sourceInTarget ? target : source;
+                    const containmentRatio = Math.min(normalizedSource.length, normalizedTarget.length) / 
+                                            Math.max(normalizedSource.length, normalizedTarget.length);
+                    if (containmentRatio >= 0.85) {
+                        return `Nearly identical - "${shorter}" appears in "${longer}"`;
+                    } else if (containmentRatio >= 0.7) {
+                        return `"${shorter}" is a major part of "${longer}"`;
+                    } else {
+                        return `"${shorter}" appears within "${longer}"`;
+                    }
+                }
+            }
+            
+            // Check for typo-like matches (very similar words with single character differences)
+            // This should come BEFORE acronym check to avoid false positives like "Jerad" vs "Jared"
+            if (sourceWords.length === targetWords.length && sourceWords.length >= 2) {
+                let similarWordCount = 0;
+                let exactWordCount = 0;
+                for (let i = 0; i < sourceWords.length; i++) {
+                    if (sourceWords[i] === targetWords[i]) {
+                        exactWordCount++;
+                        similarWordCount++;
+                    } else if (Math.abs(sourceWords[i].length - targetWords[i].length) <= 1) {
+                        // Check if words are similar (typo-like)
+                        const w1 = sourceWords[i];
+                        const w2 = targetWords[i];
+                        let differences = 0;
+                        const minLen = Math.min(w1.length, w2.length);
+                        for (let j = 0; j < minLen; j++) {
+                            if (w1[j] !== w2[j]) differences++;
+                        }
+                        differences += Math.abs(w1.length - w2.length);
+                        if (differences <= 1 && w1.length >= 4) {
+                            similarWordCount++;
+                        }
+                    }
+                }
+                
+                // Check for plural variations (before typo check, as plurals are more common)
+                const pluralWords = [];
+                for (let i = 0; i < sourceWords.length; i++) {
+                    const w1 = sourceWords[i];
+                    const w2 = targetWords[i];
+                    if (w1 !== w2 && (
+                        w1 + 's' === w2 || w2 + 's' === w1 ||
+                        w1 + 'es' === w2 || w2 + 'es' === w1 ||
+                        (w1.endsWith('s') && w1.slice(0, -1) === w2) ||
+                        (w2.endsWith('s') && w2.slice(0, -1) === w1) ||
+                        (w1.endsWith('es') && w1.slice(0, -2) === w2) ||
+                        (w2.endsWith('es') && w2.slice(0, -2) === w1)
+                    )) {
+                        pluralWords.push(`${w1}/${w2}`);
+                    }
+                }
+                
+                if (pluralWords.length > 0 && exactWordCount >= sourceWords.length - pluralWords.length && score >= 0.7) {
+                    if (pluralWords.length === 1 && exactWordCount === sourceWords.length - 1) {
+                        return `Identical except for plural/singular: ${pluralWords[0]}`;
+                    }
+                    return `Very similar - plural/singular variations (${pluralWords.join(', ')})`;
+                }
+                
+                // If most words match exactly and one word is a typo, this is a typo match, not acronym
+                if (similarWordCount >= sourceWords.length - 1 && exactWordCount >= sourceWords.length - 1 && score >= 0.7) {
+                    if (typoWords.length > 0) {
+                        return `Very similar - minor typo in word${typoWords.length > 1 ? 's' : ''} (${typoWords.join(', ')})`;
+                    }
+                    return 'Very similar - minor typo variation';
+                }
+            }
+            
+            // Check for legal suffix differences (e.g., "Inc" vs "LLC")
+            // OPTIMIZED: Use Set for O(1) lookup instead of O(n) includes()
+            const legalSuffixes = ['inc', 'llc', 'ltd', 'corp', 'corporation', 'co', 'company', 'lp', 'llp'];
+            const legalSuffixesSet = new Set(legalSuffixes);
+            const sourceWordsNonLegal = sourceWords.filter(w => !legalSuffixesSet.has(w));
+            const targetWordsNonLegal = targetWords.filter(w => !legalSuffixesSet.has(w));
+            const sourceHasLegal = sourceWords.some(w => legalSuffixesSet.has(w));
+            const targetHasLegal = targetWords.some(w => legalSuffixesSet.has(w));
+            
+            if (sourceWordsNonLegal.length > 0 && targetWordsNonLegal.length > 0 &&
+                sourceWordsNonLegal.length === targetWordsNonLegal.length &&
+                sourceHasLegal && targetHasLegal && score >= 0.85) {
+                // OPTIMIZED: Use Set for O(1) lookup instead of O(n) includes()
+                const targetWordsNonLegalSet = new Set(targetWordsNonLegal);
+                const sourceWordsNonLegalSet = new Set(sourceWordsNonLegal);
+                if (sourceWordsNonLegal.every(w => targetWordsNonLegalSet.has(w)) &&
+                    targetWordsNonLegal.every(w => sourceWordsNonLegalSet.has(w))) {
+                    const sourceSuffix = sourceWords.find(w => legalSuffixesSet.has(w));
+                    const targetSuffix = targetWords.find(w => legalSuffixesSet.has(w));
+                    if (sourceSuffix && targetSuffix && sourceSuffix !== targetSuffix) {
+                        return `Same business name - different entity type (${sourceSuffix.toUpperCase()} vs ${targetSuffix.toUpperCase()})`;
+                    }
+                    return 'Same business name - different legal entity type';
+                }
+            }
+            
+            // Check for acronyms/abbreviations (first letter of each word)
+            // Only use this if NOT a typo-like match (to avoid "Jerad" vs "Jared" being called "JZ acronym")
+            const sourceAcronym = sourceWords.map(w => w[0] || '').join('').toUpperCase();
+            const targetAcronym = targetWords.map(w => w[0] || '').join('').toUpperCase();
+            
+            // Only use acronym match if words are NOT very similar (to avoid false positives)
+            // OPTIMIZED: For 3+ char acronyms, skip expensive character similarity check
+            if (sourceAcronym.length >= 2 && targetAcronym.length >= 2 && 
+                sourceAcronym === targetAcronym && score >= 0.6) {
+                // For 3+ char acronyms, assume it's safe (meaningful acronym)
+                if (sourceAcronym.length >= 3) {
+                    return `Acronym "${sourceAcronym}" matches - same initials suggest same entity`;
+                }
+                // For 2-char acronyms, check character similarity to avoid typos (like "JZ" for "Jerad" vs "Jared")
+                // Only do this expensive check if score is borderline (0.6-0.8)
+                if (score < 0.8) {
+                    const charSimilarity = calculateCharacterSimilarity(source, target);
+                    if (charSimilarity < 0.95) {
+                        return `Acronym "${sourceAcronym}" matches - same initials (${Math.round(score * 100)}% similarity)`;
+                    }
+                } else {
+                    // High score with 2-char acronym is probably safe
+                    return `Acronym "${sourceAcronym}" matches - same initials with high similarity`;
+                }
+            }
+            
+            // Check for common word patterns
+            const commonWords = sourceWords.filter(w => w.length > 2 && targetWords.includes(w));
+            if (commonWords.length >= 2 && score >= 0.6) {
+                const wordList = commonWords.slice(0, 3).join(', ');
+                const percentage = Math.round((commonWords.length / Math.max(sourceWords.length, targetWords.length)) * 100);
+                return `Shares ${commonWords.length} key words (${percentage}% overlap): ${wordList}`;
+            }
+            
+            // Check for similar word order
+            if (sourceWords.length === targetWords.length && score >= 0.6) {
+                let matchingPositions = 0;
+                for (let i = 0; i < Math.min(sourceWords.length, targetWords.length); i++) {
+                    if (sourceWords[i] === targetWords[i]) matchingPositions++;
+                }
+                if (matchingPositions >= 2) {
+                    return `Similar structure - ${matchingPositions} of ${sourceWords.length} words match in same position`;
+                }
+            }
+            
+            // Check for single common word (if it's a significant word)
+            if (commonWords.length === 1 && commonWords[0].length > 4 && score >= 0.5) {
+                return `Shares key word: "${commonWords[0]}" (${score >= 0.7 ? 'strong' : 'partial'} match)`;
+            }
+            
+            // Provide more specific reasons based on score ranges
+            if (score >= 0.9) {
+                return `Very high similarity (${Math.round(score * 100)}%) - near-perfect match`;
+            } else if (score >= 0.8) {
+                return `High similarity (${Math.round(score * 100)}%) - strong match`;
+            } else if (score >= 0.7) {
+                return `Moderate-high similarity (${Math.round(score * 100)}%)`;
+            } else if (score >= 0.6) {
+                return `Moderate similarity (${Math.round(score * 100)}%)`;
+            } else if (score >= 0.5) {
+                return `Low-moderate similarity (${Math.round(score * 100)}%) - may need review`;
+            } else if (score >= 0.3) {
+                return `Low similarity (${Math.round(score * 100)}%) - weak match, review recommended`;
+            } else {
+                return `Very low similarity (${Math.round(score * 100)}%) - unlikely match`;
+            }
+        }
+
+        // ELI5: Helper function to find 2nd and 3rd best matches when exact match is found
+        // This allows us to still show alternatives even when exact match exists
+        function findOtherMatchesForExactMatch(sourceName, normalizedSourceName, sourceNameNormalizedForExact, exactTargetRow, matchType) {
+            const allOtherMatches = [];
+            const exactId = exactTargetRow[targetColumns.id];
+            
+            for (let targetRow of targetData.rows) {
+                // Skip the exact match itself
+                if (targetRow[targetColumns.id] === exactId) continue;
+                
+                const targetName = String(targetRow[targetColumns.name] || '').trim();
+                if (!targetName) continue;
+                
+                const normalizedTargetName = normalizeText(targetName);
+                const nameScore = calculateSimilarity(sourceName, targetName);
+                
+                allOtherMatches.push({
+                    match: targetRow,
+                    score: nameScore,
+                    reason: generateMatchReason(sourceName, targetName, nameScore, normalizedSourceName, normalizedTargetName),
+                    isExact: false,
+                    isExactString: false,
+                    isExactNormalized: false,
+                    targetNameLength: targetName.length
+                });
+            }
+            
+            // Sort by score
+            allOtherMatches.sort((a, b) => b.score - a.score);
+            
+            // Get top 2 (for 2nd and 3rd place)
+            const secondMatch = allOtherMatches[0] || { match: null, score: 0, reason: '', isExact: false };
+            const thirdMatch = allOtherMatches[1] || { match: null, score: 0, reason: '', isExact: false };
+            
+            // Build exact match object
+            const exactTargetName = String(exactTargetRow[targetColumns.name] || '').trim();
+            const exactMatch = {
+                match: exactTargetRow,
+                score: 1.0,
+                reason: matchType === 'exactString' ? 'Exact match to source name' : 'Exact normalized match',
+                isExact: true,
+                isExactString: matchType === 'exactString',
+                isExactNormalized: matchType === 'exactNormalized',
+                targetNameLength: exactTargetName.length
+            };
+            
+            return {
+                matches: [exactMatch, secondMatch, thirdMatch],
+                reason: exactMatch.reason
+            };
+        }
+
+        // ELI5: This function finds the top 3 matches for a source row
+        // RULE: Matching is ONLY based on descriptions (names), NOT IDs
+        // CRITICAL: Exact matches ALWAYS win and are returned immediately
+        function findBestMatches(sourceRow) {
+            const sourceName = String(sourceRow[sourceColumns.name] || '').trim();
+            
+            // If source has no name/description, no match possible
+            if (!sourceName) {
+                return { 
+                    matches: [{ match: null, score: 0, reason: 'No source description' }],
+                    reason: 'No source description'
+                };
+            }
+
+            const normalizedSourceName = normalizeText(sourceName);
+            // For exact string matching: normalize whitespace and make case-insensitive
+            // This handles "Castro Labor Solutions LLC" vs "Castro  Labor Solutions LLC"
+            // IMPORTANT: This is for EXACT string matching (not normalized)
+            // "Supreme Green Inc." should match "Supreme Green Inc." exactly (with period)
+            // NOT "Supreme Green" (which would be a normalized match)
+            const sourceNameNormalizedForExact = sourceName.toLowerCase().trim().replace(/\s+/g, ' ');
+            
+            // CRITICAL: Check for EXACT STRING matches FIRST (before normalized)
+            // This ensures "Supreme Green Inc." matches "Supreme Green Inc." (exact) 
+            // NOT "Supreme Green" (normalized match)
+            
+            // OPTIMIZED: Combined single pass to check for exact matches
+            // PRIORITY 1: Look for EXACT string match (highest priority)
+            // PRIORITY 2: Look for exact normalized match (second priority)
+            let exactStringMatchFound = null;
+            let exactNormalizedMatchFound = null;
+            
+            for (let targetRow of targetData.rows) {
+                const targetName = String(targetRow[targetColumns.name] || '').trim();
+                if (!targetName) continue;
+                
+                // Check for exact string match first (highest priority)
+                if (!exactStringMatchFound) {
+                const targetNameNormalizedForExact = targetName.toLowerCase().trim().replace(/\s+/g, ' ');
+                if (sourceNameNormalizedForExact === targetNameNormalizedForExact) {
+                    exactStringMatchFound = targetRow;
+                        break; // Found best match - stop immediately
+                    }
+                }
+                
+                // Check for exact normalized match (only if no exact string match yet)
+                if (!exactStringMatchFound && !exactNormalizedMatchFound) {
+                const normalizedTargetName = normalizeText(targetName);
+                if (normalizedSourceName === normalizedTargetName) {
+                    exactNormalizedMatchFound = targetRow;
+                        // Don't break - continue to check for exact string match in remaining rows
+                    }
+                }
+            }
+            
+            // If exact string match found, return it immediately
+            if (exactStringMatchFound) {
+                return findOtherMatchesForExactMatch(sourceName, normalizedSourceName, sourceNameNormalizedForExact, exactStringMatchFound, 'exactString');
+            }
+            
+            // If exact normalized match found, return it
+            if (exactNormalizedMatchFound) {
+                return findOtherMatchesForExactMatch(sourceName, normalizedSourceName, sourceNameNormalizedForExact, exactNormalizedMatchFound, 'exactNormalized');
+            }
+            
+            // If we get here, NO exact matches were found - proceed with fuzzy matching
+
+            // NO EXACT MATCHES FOUND - Use optimized fuzzy matching
+            // OPTIMIZED: Use FAST pre-filter with early termination, then limit candidates
+            // Pre-compute source data once (outside the loop)
+            // Normalize source name for pre-filtering (remove hyphens, domains, etc.)
+            const sourceForFilter = sourceName.toLowerCase()
+                .replace(/\.com|\.net|\.org|\.io/gi, ' ')
+                .replace(/[-]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const sourceWords = sourceForFilter.split(' ').filter(w => w.length > 1); // Include words > 1 char
+            const sourceWordsSet = new Set(sourceWords); // For O(1) lookup
+            const sourceFirstWord = sourceWords[0] || '';
+            const sourceLength = sourceForFilter.length;
+            
+            const candidates = [];
+            const MAX_CANDIDATES = 80; // Aggressively reduced for speed
+            
+            // ULTRA-FAST pre-filter with early termination
+            for (let targetRow of targetData.rows) {
+                // Early termination if we have enough high-quality candidates
+                if (candidates.length >= MAX_CANDIDATES * 1.5) break;
+                
+                const targetName = String(targetRow[targetColumns.name] || '').trim();
+                if (!targetName) continue;
+                
+                // Normalize target name for pre-filtering (same as source)
+                const targetForFilter = normalizeText(targetName);
+                const targetLength = targetForFilter.length;
+                
+                // RELAXED CHECK 1: Length filter (more permissive)
+                if (targetLength > sourceLength * 3 || targetLength < sourceLength * 0.3) {
+                    continue;
+                }
+                
+                // RELAXED CHECK 2: Substring match (either direction) - handles "Foley" in "Foley Services", "Snapchat" contains "Snap"
+                const sourceInTarget = targetForFilter.includes(sourceForFilter);
+                const targetInSource = sourceForFilter.includes(targetForFilter);
+                const hasSubstringMatch = sourceInTarget || targetInSource;
+                
+                // RELAXED CHECK 3: First word or significant substring must appear
+                let hasFirstWordMatch = false;
+                if (sourceFirstWord && sourceFirstWord.length >= 3) {
+                    hasFirstWordMatch = targetForFilter.includes(sourceFirstWord);
+                } else if (sourceForFilter.length >= 4) {
+                    // For short names, check if first 4 chars appear
+                    hasFirstWordMatch = targetForFilter.includes(sourceForFilter.substring(0, 4));
+                }
+                
+                // RELAXED CHECK 4: Word overlap (at least one word matches)
+                const targetWords = targetForFilter.split(' ').filter(w => w.length > 1);
+                const targetWordsSet = new Set(targetWords);
+                let commonCount = 0;
+                for (let sw of sourceWords) {
+                    if (targetWordsSet.has(sw)) commonCount++;
+                }
+                
+                // Include if ANY of these conditions are met:
+                // 1. Substring match (either direction)
+                // 2. First word matches
+                // 3. At least one word overlaps
+                if (hasSubstringMatch || hasFirstWordMatch || commonCount > 0) {
+                    let cheapScore = commonCount * 0.4;
+                    if (hasSubstringMatch) {
+                        const minLen = Math.min(sourceLength, targetLength);
+                        const maxLen = Math.max(sourceLength, targetLength);
+                        cheapScore += (minLen / maxLen) * 0.6; // Boost for substring matches
+                    }
+                    if (hasFirstWordMatch) {
+                        cheapScore += 0.3; // Boost for first word match
+                    }
+                    
+                    candidates.push({ 
+                        row: targetRow, 
+                        name: targetName, 
+                        normalized: normalizeText(targetName), // Full normalization for later
+                        cheapScore: cheapScore
+                    });
+                }
+            }
+            
+            // Sort and take top candidates
+            candidates.sort((a, b) => b.cheapScore - a.cheapScore);
+            const topCandidates = candidates.slice(0, MAX_CANDIDATES);
+            
+            // Second pass: Calculate similarity only for top pre-filtered candidates
+            const allMatches = [];
+            for (let candidate of topCandidates) {
+                const targetRow = candidate.row;
+                const targetName = candidate.name;
+                const normalizedTargetName = candidate.normalized;
+                
+                const sourceInTarget = normalizedTargetName.includes(normalizedSourceName);
+                const targetInSource = normalizedSourceName.includes(normalizedTargetName);
+                const isContained = sourceInTarget || targetInSource;
+                
+                // Calculate similarity (expensive operation, but now limited to ~200 candidates)
+                let nameScore = calculateSimilarity(sourceName, targetName);
+                
+                // Boost for substring matches
+                if (isContained) {
+                        const sourceLength = normalizedSourceName.length;
+                        const targetLength = normalizedTargetName.length;
+                        const minLength = Math.min(sourceLength, targetLength);
+                        const maxLength = Math.max(sourceLength, targetLength);
+                        const containmentRatio = minLength / maxLength;
+                        
+                        if (containmentRatio >= 0.85) {
+                        nameScore = Math.max(nameScore, 0.99);
+                        } else if (containmentRatio >= 0.7) {
+                            nameScore = Math.max(nameScore, 0.95);
+                        } else if (containmentRatio >= 0.5) {
+                            nameScore = Math.max(nameScore, 0.90);
+                        }
+                }
+                
+                allMatches.push({
+                    match: targetRow,
+                    score: nameScore,
+                    targetName: targetName,
+                    normalizedTargetName: normalizedTargetName,
+                    targetNameLength: targetName.length,
+                    isContained: isContained
+                });
+            }
+            
+            // Sort matches by score
+            allMatches.sort((a, b) => {
+                const scoreDiff = b.score - a.score;
+                if (Math.abs(scoreDiff) > 0.01) return scoreDiff;
+                return a.targetNameLength - b.targetNameLength;
+            });
+
+            // Generate reasons only for top 3 matches (optimization)
+            const topMatches = allMatches.slice(0, 3);
+            for (let match of topMatches) {
+                match.reason = generateMatchReason(sourceName, match.targetName, match.score, normalizedSourceName, match.normalizedTargetName);
+                match.isExact = false;
+                match.isExactString = false;
+                match.isExactNormalized = false;
+                match.isSourceExactInTarget = match.isContained;
+            }
+            
+            // Pad with null matches if we have fewer than 3
+            while (topMatches.length < 3) {
+                topMatches.push({ match: null, score: 0, reason: '', isExact: false });
+            }
+            
+            // Check if the best match is below the minimum confidence threshold
+            // If so, treat it as "no match" - algorithm admits it can't find a good match
+            const bestMatch = topMatches[0];
+            if (bestMatch && bestMatch.score < MIN_MATCH_CONFIDENCE_THRESHOLD) {
+                // Return "no match" - confidence too low
+                return {
+                    matches: [
+                        { match: null, score: 0, reason: `No match found - best confidence ${Math.round(bestMatch.score * 100)}% is below minimum threshold`, isExact: false },
+                        topMatches[0], // Still include the best attempt as 2nd place for reference
+                        topMatches[1] || { match: null, score: 0, reason: '', isExact: false }
+                    ],
+                    reason: `No match found - confidence ${Math.round(bestMatch.score * 100)}% is too low`
+                };
+            }
+
+            return {
+                matches: topMatches,
+                reason: topMatches[0].reason || 'No match found'
+            };
+        }
+
+        // ELI5: Variables to track mapping progress
+        let mappingCancelled = false;
+        let totalRowsToProcess = 0;
+        let statusMessageInterval = null;
+
+        // ELI5: This function shows the loading bar
+        function showLoadingBar(totalRows) {
+            totalRowsToProcess = totalRows;
+            mappingCancelled = false;
+            const loadingModal = document.getElementById('loadingModal');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const loadingSegments = document.getElementById('loadingSegments');
+            
+            // Create 20 segments for the progress bar
+            loadingSegments.innerHTML = '';
+            for (let i = 0; i < 20; i++) {
+                const segment = document.createElement('div');
+                segment.className = 'loading-segment';
+                segment.id = `segment-${i}`;
+                loadingSegments.appendChild(segment);
+            }
+            
+            loadingMessage.textContent = `Processing ${totalRows} records...`;
+            loadingModal.classList.add('active');
+            updateProgressBar(0);
+        }
+
+        // ELI5: This function updates the progress bar
+        function updateProgressBar(currentRow) {
+            if (mappingCancelled) return;
+            
+            const progress = totalRowsToProcess > 0 ? (currentRow / totalRowsToProcess) * 100 : 0;
+            const loadingMessage = document.getElementById('loadingMessage');
+            
+            // Update segments (20 segments = 5% each)
+            const filledSegments = Math.floor(progress / 5);
+            for (let i = 0; i < 20; i++) {
+                const segment = document.getElementById(`segment-${i}`);
+                if (segment) {
+                    if (i < filledSegments) {
+                        segment.classList.add('filled');
+                    } else {
+                        segment.classList.remove('filled');
+                    }
+                }
+            }
+            
+            // Update message with progress
+            if (loadingMessage) {
+                loadingMessage.textContent = `Processing record ${currentRow} of ${totalRowsToProcess}...`;
+            }
+        }
+
+        // ELI5: This function hides the loading bar
+        function hideLoadingBar() {
+            const loadingModal = document.getElementById('loadingModal');
+            loadingModal.classList.remove('active');
+            if (statusMessageInterval) {
+                clearInterval(statusMessageInterval);
+                statusMessageInterval = null;
+            }
+        }
+
+        // ELI5: This function cancels the mapping
+        function cancelMapping() {
+            mappingCancelled = true;
+            hideLoadingBar();
+            showError('Mapping cancelled by user');
+        }
+
+        // ELI5: This is the main function that does all the matching work
+        function mapData() {
+            if (!sourceData || !targetData) {
+                showError('Please upload both files and select columns first');
+                return;
+            }
+
+            showError('');
+            mappingResults = [];
+
+            const totalRows = sourceData.rows.length;
+            
+            // Show loading bar
+            showLoadingBar(totalRows);
+
+            // Use requestAnimationFrame for smooth updates
+            let currentIndex = 0;
+            
+            function processNextBatch() {
+                if (mappingCancelled) {
+                    hideLoadingBar();
+                    return;
+                }
+                
+                // Process rows in batches for better performance
+                const batchSize = Math.max(1, Math.floor(totalRows / 100));
+                const endIndex = Math.min(currentIndex + batchSize, sourceData.rows.length);
+                
+                for (let i = currentIndex; i < endIndex; i++) {
+                    const sourceRow = sourceData.rows[i];
+                    const matchResults = findBestMatches(sourceRow);
+                    const bestMatch = matchResults.matches[0];
+                    const secondMatch = matchResults.matches[1];
+                    const thirdMatch = matchResults.matches[2];
+                    
+                    mappingResults.push({
+                        sourceId: sourceRow[sourceColumns.id] || '',
+                        sourceName: sourceRow[sourceColumns.name] || '',
+                        sourceRow: sourceRow, // Store full source row for reference columns
+                        targetId: bestMatch.match ? (bestMatch.match[targetColumns.id] || '') : '',
+                        targetName: bestMatch.match ? (bestMatch.match[targetColumns.name] || '') : '',
+                        targetRow: bestMatch.match || null, // Store full target row for reference columns
+                        score: bestMatch.score,
+                        reason: bestMatch.reason || matchResults.reason,
+                        secondTargetId: secondMatch.match ? (secondMatch.match[targetColumns.id] || '') : '',
+                        secondTargetName: secondMatch.match ? (secondMatch.match[targetColumns.name] || '') : '',
+                        secondScore: secondMatch.score,
+                        thirdTargetId: thirdMatch.match ? (thirdMatch.match[targetColumns.id] || '') : '',
+                        thirdTargetName: thirdMatch.match ? (thirdMatch.match[targetColumns.name] || '') : '',
+                        thirdScore: thirdMatch.score
+                    });
+                }
+                
+                currentIndex = endIndex;
+                updateProgressBar(currentIndex);
+                
+                if (currentIndex < sourceData.rows.length) {
+                    // Continue processing
+                    setTimeout(() => requestAnimationFrame(processNextBatch), 10);
+                } else {
+                    // Done processing
+                    hideLoadingBar();
+                    if (!mappingCancelled) {
+                        displayResults();
+                    }
+                }
+            }
+            
+            // Start processing
+            setTimeout(() => requestAnimationFrame(processNextBatch), 100);
+        }
+
+        // ELI5: This function gets a text label for confidence level
+        // Like giving a grade: A, B, C, D, or F
+        function getConfidenceLevel(score) {
+            if (score === 1.0) return 'Very High';
+            // Adjusted thresholds: be more conservative with "High" confidence
+            // High should only be for very strong matches (90%+)
+            if (score >= 0.9) return 'High';
+            if (score >= 0.7) return 'Medium';
+            if (score >= 0.5) return 'Low';
+            return 'Very Low';
+        }
+
+        // ELI5: This function shows the results in a nice table
+        function displayResults() {
+            try {
+            const resultsBody = document.getElementById('resultsBody');
+            const resultsSection = document.getElementById('resultsSection');
+            const statsDiv = document.getElementById('stats');
+            const exportButton = document.getElementById('exportButton');
+            const metricsBox = document.getElementById('metricsBox');
+            const metricsGrid = document.getElementById('metricsGrid');
+
+                if (!resultsBody || !resultsSection || !statsDiv) {
+                    console.error('Results elements not found');
+                    return;
+                }
+
+            resultsBody.innerHTML = '';
+            metricsGrid.innerHTML = '';
+
+            // Calculate metrics
+            const totalInputLines = mappingResults.length;
+            let successfullyMapped = 0;
+            let unsuccessfullyMapped = 0;
+            let exactMatches = 0;
+            let highMatches = 0;
+            let mediumMatches = 0;
+            let lowMatches = 0;
+            let veryLowMatches = 0;
+            let totalConfidence = 0;
+
+            for (let result of mappingResults) {
+                totalConfidence += result.score;
+                
+                // Count by confidence level
+                if (result.score === 1.0) {
+                    exactMatches++;
+                } else if (result.score >= 0.8) {
+                    highMatches++;
+                } else if (result.score >= 0.6) {
+                    mediumMatches++;
+                } else if (result.score >= 0.3) {
+                    lowMatches++;
+                } else {
+                    veryLowMatches++;
+                }
+
+                // A match is successful if score >= 0.6 AND has target data
+                const hasTargetData = result.targetId || result.targetName;
+                if (hasTargetData && result.score >= 0.6) {
+                    successfullyMapped++;
+                } else {
+                    unsuccessfullyMapped++;
+                }
+            }
+
+            const averageConfidence = totalInputLines > 0 ? (totalConfidence / totalInputLines * 100).toFixed(1) : 0;
+            const successRate = totalInputLines > 0 ? ((successfullyMapped / totalInputLines) * 100).toFixed(1) : 0;
+
+            // Display metrics
+            const metrics = [
+                { label: 'Total Input Lines', value: totalInputLines, class: '' },
+                { label: 'Successfully Mapped', value: successfullyMapped, class: 'success' },
+                { label: 'Unsuccessfully Mapped', value: unsuccessfullyMapped, class: unsuccessfullyMapped > 0 ? 'error' : '' },
+                { label: 'Success Rate', value: `${successRate}%`, class: parseFloat(successRate) >= 80 ? 'success' : parseFloat(successRate) >= 50 ? 'warning' : 'error' },
+                { label: 'Average Confidence', value: `${averageConfidence}%`, class: parseFloat(averageConfidence) >= 80 ? 'success' : parseFloat(averageConfidence) >= 60 ? 'warning' : 'error' },
+                { label: 'Exact Matches', value: exactMatches, class: 'success' },
+                { label: 'High Confidence', value: highMatches, class: 'success' },
+                { label: 'Medium Confidence', value: mediumMatches, class: 'warning' },
+                { label: 'Low Confidence', value: lowMatches, class: 'warning' },
+                { label: 'Very Low/No Match', value: veryLowMatches, class: 'error' }
+            ];
+
+            metrics.forEach(metric => {
+                const metricDiv = document.createElement('div');
+                metricDiv.className = 'metric-item';
+                metricDiv.innerHTML = `
+                    <div class="metric-label">${metric.label}</div>
+                    <div class="metric-value ${metric.class}">${metric.value}</div>
+                `;
+                metricsGrid.appendChild(metricDiv);
+            });
+
+            // Store raw results and compute matchStatus
+            rawResults = mappingResults.map(result => {
+                let matchStatus = 'no_match';
+                // Check if this is a true "no match" (score is 0 or null match)
+                const isNoMatch = result.score === 0 || !result.targetRow;
+                if (isNoMatch) {
+                    matchStatus = 'no_match';
+                } else if (result.score === 1.0) {
+                    matchStatus = 'exact';
+                } else if (result.score >= 0.3 && result.score < 1.0) {
+                    matchStatus = 'review';
+                } else if (result.score > 0 && result.score < 0.3) {
+                    // Very low confidence - still considered "no match" for filtering
+                    matchStatus = 'no_match';
+                }
+                return { ...result, matchStatus };
+            });
+            
+            // Initialize filtered results
+            filteredResults = [...rawResults];
+            sortedResults = [];
+            currentFilter = 'all';
+            
+            // Update table headers based on output order
+            updateTableHeaders();
+            
+            // Apply initial sort and display
+            sortResults();
+
+            statsDiv.textContent = `${mappingResults.length} records mapped | ${exactMatches} exact | ${highMatches} high | ${mediumMatches} medium | ${lowMatches} low | ${veryLowMatches} very low`;
+
+            resultsSection.style.display = 'block';
+            metricsBox.classList.add('active');
+            exportButton.style.display = 'inline-block';
+            exportButton.disabled = false;
+            
+            // Update step indicator to Review Results
+            updateStepIndicator(3);
+            
+            // Update status
+            updateStatus(`${mappingResults.length} records mapped`, true);
+            } catch (error) {
+                console.error('Error in displayResults:', error);
+                showError('Error displaying results: ' + error.message);
+            }
+        }
+
+        function getConfidenceClass(score) {
+            if (score === 1.0) return 'exact';
+            // Adjusted thresholds to match getConfidenceLevel
+            if (score >= 0.9) return 'high';
+            if (score >= 0.7) return 'medium';
+            if (score >= 0.5) return 'low';
+            return 'none';
+        }
+
+        // ELI5: This function converts workbook data back to Excel format
+        // Like converting our stored data back to the original Excel format
+        function convertWorkbookDataToExcelSheet(sheetData) {
+            if (!sheetData || !sheetData.headers || !sheetData.rows) {
+                return null;
+            }
+
+            // Create array of arrays - first row is headers, then data rows
+            const excelData = [sheetData.headers];
+
+            // Add all rows with all columns in original order
+            for (let row of sheetData.rows) {
+                const excelRow = [];
+                for (let header of sheetData.headers) {
+                    excelRow.push(String(row[header] || ''));
+                }
+                excelData.push(excelRow);
+            }
+
+            return excelData;
+        }
+
+        // ELI5: This function creates an Excel file with your results
+        function exportToExcel() {
+            try {
+                // Check if XLSX library is loaded
+                if (typeof XLSX === 'undefined') {
+                    showError('Excel library not loaded. Please refresh the page and try again.');
+                    exportToCSV();
+                    return;
+                }
+
+                if (mappingResults.length === 0) {
+                    showError('No results to export. Please map data first.');
+                    return;
+                }
+
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+
+                // ===== TAB 1: Source (Original Source File Data) =====
+                if (sourceData) {
+                    const sourceExcelData = convertWorkbookDataToExcelSheet(sourceData);
+                    if (sourceExcelData) {
+                        const sourceWs = XLSX.utils.aoa_to_sheet(sourceExcelData);
+                        // Set column widths (auto-size based on headers)
+                        if (sourceData.headers) {
+                            sourceWs['!cols'] = sourceData.headers.map(() => ({ wch: 20 }));
+                        }
+                        XLSX.utils.book_append_sheet(wb, sourceWs, 'Source');
+                    }
+                }
+
+                // ===== TAB 2: Target (Original Target File Data) =====
+                if (targetData) {
+                    const targetExcelData = convertWorkbookDataToExcelSheet(targetData);
+                    if (targetExcelData) {
+                        const targetWs = XLSX.utils.aoa_to_sheet(targetExcelData);
+                        // Set column widths (auto-size based on headers)
+                        if (targetData.headers) {
+                            targetWs['!cols'] = targetData.headers.map(() => ({ wch: 20 }));
+                        }
+                        XLSX.utils.book_append_sheet(wb, targetWs, 'Target');
+                    }
+                }
+
+                // ===== TAB 3: Mapping Results =====
+                const sourceOrder = sourceColumns.outputOrder || [];
+                const targetOrder = targetColumns.outputOrder || [];
+                
+                // Build header row
+                const headerRow = [];
+                sourceOrder.forEach(col => {
+                    headerRow.push(`Source: ${col}`);
+                });
+                targetOrder.forEach(col => {
+                    headerRow.push(`Target: ${col}`);
+                });
+                headerRow.push('Confidence Level', 'Confidence %', 'Match Reason', '2nd Best Match', '3rd Best Match');
+                
+                const excelData = [headerRow];
+
+                for (let result of mappingResults) {
+                    const confidencePercent = Math.round(result.score * 100);
+                    const confidenceLevel = getConfidenceLevel(result.score);
+                    const secondMatchText = result.secondTargetName 
+                        ? `${result.secondTargetName} (${Math.round(result.secondScore * 100)}%)`
+                        : '(None)';
+                    const thirdMatchText = result.thirdTargetName 
+                        ? `${result.thirdTargetName} (${Math.round(result.thirdScore * 100)}%)`
+                        : '(None)';
+                    
+                    const row = [];
+                    
+                    // Source columns in output order
+                    sourceOrder.forEach(col => {
+                        let val = '';
+                        if (result.sourceRow) {
+                            val = result.sourceRow[col] || '';
+                        } else if (col === sourceColumns.name || col === sourceColumns.id) {
+                            val = result.sourceName || result.sourceId || '';
+                        }
+                        row.push(String(val));
+                    });
+                    
+                    // Target columns in output order
+                    targetOrder.forEach(col => {
+                        let val = '';
+                        if (result.targetRow) {
+                            val = result.targetRow[col] || '';
+                        } else if (col === targetColumns.name || col === targetColumns.id) {
+                            val = result.targetName || result.targetId || '';
+                        }
+                        row.push(String(val || '(No match)'));
+                    });
+                    
+                    row.push(String(confidenceLevel), confidencePercent, String(result.reason || 'No reason provided'), secondMatchText, thirdMatchText);
+                    excelData.push(row);
+                }
+
+                const ws = XLSX.utils.aoa_to_sheet(excelData);
+                // Set column widths dynamically
+                const colWidths = [];
+                sourceOrder.forEach(() => colWidths.push({ wch: 25 }));
+                targetOrder.forEach(() => colWidths.push({ wch: 25 }));
+                colWidths.push({ wch: 15 }, { wch: 12 }, { wch: 40 }, { wch: 35 }, { wch: 35 });
+                ws['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(wb, ws, 'Mapping Results');
+
+                // Generate filename with current date
+                const today = new Date();
+                const dateStr = today.getFullYear() + '-' + 
+                               String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                               String(today.getDate()).padStart(2, '0');
+                const fileName = `data_mapping_${dateStr}.xlsx`;
+
+                // Write and download the file
+                XLSX.writeFile(wb, fileName);
+                
+            } catch (error) {
+                console.error('Error exporting to Excel:', error);
+                showError('Error exporting to Excel: ' + error.message + '. Trying CSV fallback...');
+                // Try CSV as fallback
+                setTimeout(() => exportToCSV(), 500);
+            }
+        }
+
+        // ELI5: Fallback function to export as CSV if Excel doesn't work
+        function exportToCSV() {
+            try {
+                if (mappingResults.length === 0) {
+                    showError('No results to export.');
+                    return;
+                }
+
+                // Create CSV content with output column order
+                const sourceOrder = sourceColumns.outputOrder || [];
+                const targetOrder = targetColumns.outputOrder || [];
+                
+                // Build header row
+                const headerRow = [];
+                sourceOrder.forEach(col => {
+                    headerRow.push(`Source: ${col}`);
+                });
+                targetOrder.forEach(col => {
+                    headerRow.push(`Target: ${col}`);
+                });
+                headerRow.push('Confidence Level', 'Confidence %', 'Match Reason', '2nd Best Match', '3rd Best Match');
+                
+                // Escape commas and quotes in CSV
+                const escapeCSV = (str) => {
+                    const s = String(str || '');
+                    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                        return '"' + s.replace(/"/g, '""') + '"';
+                    }
+                    return s;
+                };
+                
+                let csvContent = headerRow.map(escapeCSV).join(',') + '\n';
+
+                for (let result of mappingResults) {
+                    const confidencePercent = Math.round(result.score * 100);
+                    const confidenceLevel = getConfidenceLevel(result.score);
+                    const secondMatchText = result.secondTargetName 
+                        ? `${result.secondTargetName} (${Math.round(result.secondScore * 100)}%)`
+                        : '(None)';
+                    const thirdMatchText = result.thirdTargetName 
+                        ? `${result.thirdTargetName} (${Math.round(result.thirdScore * 100)}%)`
+                        : '(None)';
+                    
+                    const row = [];
+                    
+                    // Source columns in output order
+                    sourceOrder.forEach(col => {
+                        let val = '';
+                        if (result.sourceRow) {
+                            val = result.sourceRow[col] || '';
+                        } else if (col === sourceColumns.name || col === sourceColumns.id) {
+                            val = result.sourceName || result.sourceId || '';
+                        }
+                        row.push(escapeCSV(val));
+                    });
+                    
+                    // Target columns in output order
+                    targetOrder.forEach(col => {
+                        let val = '';
+                        if (result.targetRow) {
+                            val = result.targetRow[col] || '';
+                        } else if (col === targetColumns.name || col === targetColumns.id) {
+                            val = result.targetName || result.targetId || '';
+                        }
+                        row.push(escapeCSV(val || '(No match)'));
+                    });
+                    
+                    row.push(escapeCSV(confidenceLevel), confidencePercent, escapeCSV(result.reason || 'No reason provided'), escapeCSV(secondMatchText), escapeCSV(thirdMatchText));
+                    csvContent += row.join(',') + '\n';
+                }
+
+                // Create download link
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const today = new Date();
+                const dateStr = today.getFullYear() + '-' + 
+                               String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                               String(today.getDate()).padStart(2, '0');
+                link.href = URL.createObjectURL(blob);
+                link.download = `data_mapping_${dateStr}.csv`;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log('CSV file exported successfully');
+            } catch (error) {
+                console.error('Error exporting to CSV:', error);
+                showError('Error exporting file: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            if (message) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            } else {
+                errorDiv.style.display = 'none';
+            }
+        }
+
+        function setupDragAndDrop() {
+            ['source', 'target'].forEach(type => {
+                const area = document.getElementById(`${type}UploadArea`);
+                const input = document.getElementById(`${type}File`);
+
+                area.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    area.classList.add('dragover');
+                });
+
+                area.addEventListener('dragleave', () => {
+                    area.classList.remove('dragover');
+                });
+
+                area.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    area.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        input.files = files;
+                        handleFileSelect(type, files[0]);
+                    }
+                });
+            });
+        }
+
+        // ELI5: Wait for Excel library to load
+        function waitForXLSX(callback, maxAttempts = 10) {
+            if (typeof XLSX !== 'undefined') {
+                callback();
+            } else if (maxAttempts > 0) {
+                setTimeout(() => waitForXLSX(callback, maxAttempts - 1), 500);
+            } else {
+                console.warn('XLSX library failed to load after multiple attempts');
+            }
+        }
+
+        // Check library when page loads
+        window.addEventListener('load', function() {
+            waitForXLSX(function() {
+                console.log('XLSX library loaded successfully');
+            });
+            
+            // Add event listener to export button as backup
+            const exportBtn = document.getElementById('exportButton');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', function(e) {
+                    if (!this.disabled) {
+                        exportToExcel();
+                    }
+                });
+            }
+        });
+
+        // Update table headers based on output column order
+        function updateTableHeaders() {
+            const thead = document.querySelector('#resultsTable thead tr');
+            if (!thead) return;
+            
+            const sourceOrder = sourceColumns.outputOrder || [];
+            const targetOrder = targetColumns.outputOrder || [];
+            
+            // If no output order set, use defaults (match column only)
+            let headers = [];
+            if (sourceOrder.length > 0) {
+                sourceOrder.forEach(col => {
+                    headers.push(`Source: ${col}`);
+                });
+            } else if (sourceColumns.name) {
+                headers.push(`Source: ${sourceColumns.name}`);
+            } else {
+                headers.push('Source Item');
+            }
+            
+            if (targetOrder.length > 0) {
+                targetOrder.forEach(col => {
+                    headers.push(`Target: ${col}`);
+                });
+            } else if (targetColumns.name) {
+                headers.push(`Target: ${targetColumns.name}`);
+            } else {
+                headers.push('Target Item');
+            }
+            
+            headers.push('Confidence Level', 'Confidence %', 'Match Reason', '2nd Best Match', '3rd Best Match');
+            
+            thead.innerHTML = headers.map(h => `<th>${h}</th>`).join('');
+        }
+
+        // Filter results based on view selection
+        function filterResults(filter) {
+            currentFilter = filter;
+            
+            // Update button states
+            document.querySelectorAll('.toolbar-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeButton = document.querySelector(`[data-filter="${filter}"]`);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+            
+            // Filter the raw results
+            filteredResults = rawResults.filter(result => {
+                if (filter === 'all') return true;
+                if (filter === 'exact') return result.matchStatus === 'exact';
+                if (filter === 'review') return result.matchStatus === 'review';
+                if (filter === 'none') return result.matchStatus === 'no_match';
+                return true;
+            });
+            
+            // Sort and display (sort will create sortedResults from filteredResults)
+            sortedResults = [];
+            sortResults();
+        }
+
+        // Sort filtered results
+        function sortResults() {
+            const sortSelect = document.getElementById('sortBySelect');
+            if (sortSelect) {
+                currentSort = sortSelect.value;
+            }
+            
+            // Sort the filtered results
+            sortedResults = [...filteredResults];
+            
+            sortedResults.sort((a, b) => {
+                if (currentSort === 'confidence-desc') return b.score - a.score;
+                if (currentSort === 'confidence-asc') return a.score - b.score;
+                if (currentSort === 'source') {
+                    const aVal = a.sourceName || a.sourceId || '';
+                    const bVal = b.sourceName || b.sourceId || '';
+                    return aVal.localeCompare(bVal);
+                }
+                if (currentSort === 'target') {
+                    const aVal = a.targetName || a.targetId || '';
+                    const bVal = b.targetName || b.targetId || '';
+                    return aVal.localeCompare(bVal);
+                }
+                return 0;
+            });
+            
+            displayFilteredResults();
+        }
+
+        // Display filtered and sorted results
+        function displayFilteredResults() {
+            try {
+                const resultsBody = document.getElementById('resultsBody');
+                if (!resultsBody) {
+                    console.error('resultsBody not found');
+                    return;
+                }
+                resultsBody.innerHTML = '';
+                
+                // Use sortedResults if available, otherwise use filteredResults
+                const resultsToDisplay = sortedResults.length > 0 ? sortedResults : filteredResults;
+                
+                if (!resultsToDisplay || resultsToDisplay.length === 0) {
+                    // Show empty state
+                    const emptyRow = document.createElement('tr');
+                    const colCount = document.querySelector('#resultsTable thead tr').children.length;
+                    emptyRow.innerHTML = `<td colspan="${colCount}" style="text-align: center; padding: 40px; color: #666666; font-style: italic;">No rows in this view</td>`;
+                    resultsBody.appendChild(emptyRow);
+                    return;
+                }
+                
+                const sourceOrder = sourceColumns.outputOrder || [];
+                const targetOrder = targetColumns.outputOrder || [];
+                
+                for (let result of resultsToDisplay) {
+                    const row = document.createElement('tr');
+                    
+                    const confidenceClass = getConfidenceClass(result.score);
+                    const confidencePercent = Math.round(result.score * 100);
+                    const confidenceLevel = getConfidenceLevel(result.score);
+
+                    // Format 2nd and 3rd best matches
+                    const secondMatchText = result.secondTargetName 
+                        ? `${result.secondTargetName} (${Math.round(result.secondScore * 100)}%)`
+                        : '(None)';
+                    const thirdMatchText = result.thirdTargetName 
+                        ? `${result.thirdTargetName} (${Math.round(result.thirdScore * 100)}%)`
+                        : '(None)';
+                    
+                    // Build row cells based on output order
+                    let cells = [];
+                    
+                    // Source columns in output order
+                    sourceOrder.forEach(col => {
+                        let val = '';
+                        if (result.sourceRow) {
+                            val = result.sourceRow[col] || '';
+                        } else if (col === sourceColumns.name || col === sourceColumns.id) {
+                            val = result.sourceName || result.sourceId || '';
+                        }
+                        cells.push(`<td>${val}</td>`);
+                    });
+                    
+                    // Target columns in output order
+                    targetOrder.forEach(col => {
+                        let val = '';
+                        if (result.targetRow) {
+                            val = result.targetRow[col] || '';
+                        } else if (col === targetColumns.name || col === targetColumns.id) {
+                            val = result.targetName || result.targetId || '';
+                        }
+                        cells.push(`<td>${val || '(No match)'}</td>`);
+                    });
+                    
+                    // Add confidence, reason, and alternative matches
+                    cells.push(`<td><span class="confidence ${confidenceClass}">${confidenceLevel}</span></td>`);
+                    cells.push(`<td><span class="confidence ${confidenceClass}">${confidencePercent}%</span></td>`);
+                    cells.push(`<td style="font-size: 10px;">${result.reason || 'No reason provided'}</td>`);
+                    cells.push(`<td style="font-size: 10px;">${secondMatchText}</td>`);
+                    cells.push(`<td style="font-size: 10px;">${thirdMatchText}</td>`);
+                    
+                    row.innerHTML = cells.join('');
+                    resultsBody.appendChild(row);
+                }
+                
+                // Update stats to show filtered count
+                const statsDiv = document.getElementById('stats');
+                if (statsDiv) {
+                    const totalCount = rawResults.length;
+                    const showingCount = resultsToDisplay.length;
+                    statsDiv.textContent = `Showing: ${showingCount} of ${totalCount} records`;
+                }
+            } catch (error) {
+                console.error('Error in displayFilteredResults:', error);
+                showError('Error displaying filtered results: ' + error.message);
+            }
+        }
+
+        // Update status bar
+        function updateStatus(message, fileLoaded) {
+            const statusText = document.getElementById('statusText');
+            const fileStatus = document.getElementById('fileStatus');
+            
+            statusText.textContent = message;
+            
+            if (fileLoaded) {
+                const sourceLoaded = sourceWorkbook ? 'Source loaded' : '';
+                const targetLoaded = targetWorkbook ? 'Target loaded' : '';
+                fileStatus.textContent = [sourceLoaded, targetLoaded].filter(s => s).join(' | ') || 'Files ready';
+            }
+        }
+
+        setupDragAndDrop();
+        
+        // Initialize status
+        updateStatus('Ready', false);
+    </script>
+</body>
+</html>
