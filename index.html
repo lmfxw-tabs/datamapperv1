@@ -2836,7 +2836,7 @@
         // ELI5: This function finds the top 3 matches for a source row
         // RULE: Matching is ONLY based on descriptions (names), NOT IDs
         // CRITICAL: Exact matches ALWAYS win and are returned immediately
-        function findBestMatches(sourceRow) {
+        function findBestMatches(sourceRow, exactStringMap, exactNormalizedMap) {
             const sourceName = String(sourceRow[sourceColumns.name] || '').trim();
             
             // If source has no name/description, no match possible
@@ -2856,59 +2856,21 @@
             const sourceNameNormalizedForExact = sourceName.toLowerCase().trim().replace(/\s+/g, ' ');
             
             // CRITICAL: Check for EXACT STRING matches FIRST (before normalized)
-            // This ensures "Supreme Green Inc." matches "Supreme Green Inc." (exact) 
-            // NOT "Supreme Green" (normalized match)
-            
-            // OPTIMIZED: Combined single pass to check for exact matches with early termination
-            // PRIORITY 1: Look for EXACT string match (highest priority) - fast check first
-            // PRIORITY 2: Look for exact normalized match (second priority)
+            // OPTIMIZED: Use hash map for O(1) lookup instead of O(n) linear search
+            // This checks ALL rows without performance penalty
             let exactStringMatchFound = null;
             let exactNormalizedMatchFound = null;
             
-            // OPTIMIZED: Limit exact match checks to prevent timeout on large datasets
-            // Most exact matches will be found in the first few hundred rows
-            const MAX_EXACT_CHECK = 500; // Only check first 500 rows for exact matches
-            
-            // Fast exact string match check (cheap, no normalization)
-            let exactCheckCount = 0;
-            for (let targetRow of targetData.rows) {
-                exactCheckCount++;
-                if (exactCheckCount > MAX_EXACT_CHECK) break; // Stop after checking 500 rows
-                
-                const targetName = String(targetRow[targetColumns.name] || '').trim();
-                if (!targetName) continue;
-                
-                // Fast check: compare lengths first (very cheap)
-                if (targetName.length !== sourceName.length) continue;
-                
-                // Fast exact string match (case-insensitive, whitespace normalized)
-                const targetNameNormalizedForExact = targetName.toLowerCase().trim().replace(/\s+/g, ' ');
-                if (sourceNameNormalizedForExact === targetNameNormalizedForExact) {
-                    exactStringMatchFound = targetRow;
-                    break; // Found best match - stop immediately
-                }
+            // Fast O(1) lookup for exact string match
+            if (exactStringMap.has(sourceNameNormalizedForExact)) {
+                exactStringMatchFound = exactStringMap.get(sourceNameNormalizedForExact);
             }
             
             // Only check normalized matches if no exact string match found
             if (!exactStringMatchFound) {
-                exactCheckCount = 0;
-                for (let targetRow of targetData.rows) {
-                    exactCheckCount++;
-                    if (exactCheckCount > MAX_EXACT_CHECK) break; // Stop after checking 500 rows
-                    
-                    const targetName = String(targetRow[targetColumns.name] || '').trim();
-                    if (!targetName) continue;
-                    
-                    // Quick length check before expensive normalization
-                    const targetLen = targetName.length;
-                    const sourceLen = sourceName.length;
-                    if (targetLen > sourceLen * 2 || targetLen < sourceLen * 0.5) continue;
-                    
-                    const normalizedTargetName = normalizeText(targetName);
-                    if (normalizedSourceName === normalizedTargetName) {
-                        exactNormalizedMatchFound = targetRow;
-                        break; // Found exact normalized match - stop
-                    }
+                // Fast O(1) lookup for exact normalized match
+                if (exactNormalizedMap.has(normalizedSourceName)) {
+                    exactNormalizedMatchFound = exactNormalizedMap.get(normalizedSourceName);
                 }
             }
             
@@ -3200,6 +3162,31 @@
 
             const totalRows = sourceData.rows.length;
             
+            // OPTIMIZATION: Pre-build hash maps for exact match lookups (O(1) instead of O(n))
+            // This allows checking ALL rows without performance penalty
+            // Build these once before processing, not per source row
+            const exactStringMap = new Map(); // Map: normalized string -> targetRow
+            const exactNormalizedMap = new Map(); // Map: normalized text -> targetRow
+            
+            console.log('Building exact match index...');
+            for (let targetRow of targetData.rows) {
+                const targetName = String(targetRow[targetColumns.name] || '').trim();
+                if (!targetName) continue;
+                
+                // Index for exact string matches (whitespace normalized)
+                const normalizedForExact = targetName.toLowerCase().trim().replace(/\s+/g, ' ');
+                if (!exactStringMap.has(normalizedForExact)) {
+                    exactStringMap.set(normalizedForExact, targetRow);
+                }
+                
+                // Index for exact normalized matches (full normalization)
+                const normalizedTarget = normalizeText(targetName);
+                if (!exactNormalizedMap.has(normalizedTarget)) {
+                    exactNormalizedMap.set(normalizedTarget, targetRow);
+                }
+            }
+            console.log(`Exact match index built: ${exactStringMap.size} exact strings, ${exactNormalizedMap.size} normalized`);
+            
             // Show loading bar
             showLoadingBar(totalRows);
 
@@ -3216,7 +3203,7 @@
                 // Update progress after each row to keep UI responsive
                 if (currentIndex < sourceData.rows.length) {
                     const sourceRow = sourceData.rows[currentIndex];
-                    const matchResults = findBestMatches(sourceRow);
+                    const matchResults = findBestMatches(sourceRow, exactStringMap, exactNormalizedMap);
                     const bestMatch = matchResults.matches[0];
                     const secondMatch = matchResults.matches[1];
                     const thirdMatch = matchResults.matches[2];
