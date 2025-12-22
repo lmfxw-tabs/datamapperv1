@@ -2763,30 +2763,49 @@
         }
 
         // ELI5: Helper function to find 2nd and 3rd best matches when exact match is found
-        // This allows us to still show alternatives even when exact match exists
+        // OPTIMIZED: Only check a limited number of candidates to avoid timeout
         function findOtherMatchesForExactMatch(sourceName, normalizedSourceName, sourceNameNormalizedForExact, exactTargetRow, matchType) {
             const allOtherMatches = [];
             const exactId = exactTargetRow[targetColumns.id];
+            
+            // OPTIMIZATION: Only check first 50 target rows for 2nd/3rd place (not all 8K+ rows)
+            // This prevents timeout while still finding reasonable alternatives
+            const MAX_CHECK_FOR_SECONDARY = 50;
+            let checked = 0;
             
             for (let targetRow of targetData.rows) {
                 // Skip the exact match itself
                 if (targetRow[targetColumns.id] === exactId) continue;
                 
+                checked++;
+                if (checked > MAX_CHECK_FOR_SECONDARY) break; // Stop after checking 50 rows
+                
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
                 
-                const normalizedTargetName = normalizeText(targetName);
-                const nameScore = calculateSimilarity(sourceName, targetName);
+                // Quick cheap check: substring match (very fast, no normalization)
+                const sourceLower = sourceName.toLowerCase();
+                const targetLower = targetName.toLowerCase();
+                const quickMatch = sourceLower.includes(targetLower) || targetLower.includes(sourceLower);
                 
-                allOtherMatches.push({
-                    match: targetRow,
-                    score: nameScore,
-                    reason: generateMatchReason(sourceName, targetName, nameScore, normalizedSourceName, normalizedTargetName),
-                    isExact: false,
-                    isExactString: false,
-                    isExactNormalized: false,
-                    targetNameLength: targetName.length
-                });
+                // Only do expensive calculations if there's a quick match
+                if (quickMatch) {
+                    const normalizedTargetName = normalizeText(targetName);
+                    const nameScore = calculateSimilarity(sourceName, targetName);
+                    
+                    allOtherMatches.push({
+                        match: targetRow,
+                        score: nameScore,
+                        reason: generateMatchReason(sourceName, targetName, nameScore, normalizedSourceName, normalizedTargetName),
+                        isExact: false,
+                        isExactString: false,
+                        isExactNormalized: false,
+                        targetNameLength: targetName.length
+                    });
+                }
+                
+                // Stop early if we have 2 good candidates
+                if (allOtherMatches.length >= 2) break;
             }
             
             // Sort by score
@@ -2846,8 +2865,16 @@
             let exactStringMatchFound = null;
             let exactNormalizedMatchFound = null;
             
+            // OPTIMIZED: Limit exact match checks to prevent timeout on large datasets
+            // Most exact matches will be found in the first few hundred rows
+            const MAX_EXACT_CHECK = 500; // Only check first 500 rows for exact matches
+            
             // Fast exact string match check (cheap, no normalization)
+            let exactCheckCount = 0;
             for (let targetRow of targetData.rows) {
+                exactCheckCount++;
+                if (exactCheckCount > MAX_EXACT_CHECK) break; // Stop after checking 500 rows
+                
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
                 
@@ -2864,7 +2891,11 @@
             
             // Only check normalized matches if no exact string match found
             if (!exactStringMatchFound) {
+                exactCheckCount = 0;
                 for (let targetRow of targetData.rows) {
+                    exactCheckCount++;
+                    if (exactCheckCount > MAX_EXACT_CHECK) break; // Stop after checking 500 rows
+                    
                     const targetName = String(targetRow[targetColumns.name] || '').trim();
                     if (!targetName) continue;
                     
@@ -3216,7 +3247,7 @@
                     // This ensures the browser doesn't think the page is frozen
                     setTimeout(() => {
                         requestAnimationFrame(processNextBatch);
-                    }, 20); // Even longer delay for Vercel/CDN to prevent timeout (critical for enterprise volume)
+                    }, 5); // Small delay to yield to browser (exact match limits prevent timeout)
                 } else {
                     // Done processing
                     hideLoadingBar();
