@@ -2907,23 +2907,20 @@
             const sourceWordsSet = new Set(sourceWordsQuick);
             
             const candidates = [];
-            const MAX_CANDIDATES = 30; // Aggressively reduced for enterprise volume (8K+ target rows)
-            const MAX_PREFILTER_ITERATIONS = 500; // Limit pre-filter iterations to prevent timeout
+            const MAX_CANDIDATES = 15; // Very aggressive limit for enterprise volume (8K+ target rows)
+            const MAX_PREFILTER_ITERATIONS = 100; // Very strict limit to prevent timeout on Vercel (was 200)
             
             // ULTRA-FAST pre-filter: do ALL cheap checks BEFORE any normalization
-            // Limit iterations to prevent timeout on large datasets
+            // Limit iterations aggressively to prevent timeout on large datasets
             let iterations = 0;
+            let highConfidenceCount = 0;
+            
             for (let targetRow of targetData.rows) {
                 iterations++;
                 
-                // CRITICAL: Early termination to prevent timeout
-                // If we've checked enough rows and have good candidates, stop
-                if (candidates.length >= MAX_CANDIDATES && iterations > MAX_PREFILTER_ITERATIONS) {
-                    break;
-                }
-                
-                // If we have high-confidence candidates early, stop searching
-                if (candidates.length >= 10 && candidates.some(c => c.cheapScore >= 0.9)) {
+                // CRITICAL: Very aggressive early termination to prevent timeout
+                // Stop after 200 iterations regardless (prevents timeout)
+                if (iterations > MAX_PREFILTER_ITERATIONS) {
                     break;
                 }
                 
@@ -2934,19 +2931,19 @@
                 const targetLength = targetLower.length;
                 
                 // FAST CHECK 1: Length filter (before any normalization) - most selective first
-                if (targetLength > sourceLength * 2.5 || targetLength < sourceLength * 0.4) {
+                // More restrictive to filter out more candidates early
+                if (targetLength > sourceLength * 2.0 || targetLength < sourceLength * 0.5) {
                     continue;
                 }
                 
-                // FAST CHECK 2: First character must match (very fast filter)
+                // FAST CHECK 2: First character must match exactly (very fast filter)
+                // This is the fastest possible check - reject immediately if no match
                 if (targetLower[0] !== sourceFirstChar) {
-                    // Only check includes if first char doesn't match (more expensive)
-                    if (!targetLower.includes(sourceFirstChar) && !targetLower.includes(sourceFirst4Chars)) {
-                        continue;
-                    }
+                    continue; // Skip if first char doesn't match (rejects ~95% of candidates instantly)
                 }
                 
                 // FAST CHECK 3: Quick substring check (no normalization) - highest priority
+                // This is the fastest and most accurate check - do it first for high-confidence matches
                 const quickSubstringMatch = targetLower.includes(sourceLower) || sourceLower.includes(targetLower);
                 if (quickSubstringMatch) {
                     // High confidence candidate - add immediately and prioritize
@@ -2956,28 +2953,34 @@
                         normalized: null,
                         cheapScore: 0.95 // Higher score for substring matches
                     });
-                    // If we have enough high-confidence matches, stop early
+                    highConfidenceCount++;
+                    // Stop immediately if we have enough high-confidence matches
+                    if (highConfidenceCount >= 5 || candidates.length >= MAX_CANDIDATES) {
+                        break;
+                    }
+                    continue;
+                }
+                
+                // Only do more expensive checks if we don't have enough candidates yet
+                if (candidates.length >= MAX_CANDIDATES) {
+                    continue; // Skip to next iteration instead of breaking (might find better matches)
+                }
+                
+                // FAST CHECK 4: First word check (simple, no normalization) - only if we need more candidates
+                if (sourceFirstWord && sourceFirstWord.length >= 3 && targetLower.includes(sourceFirstWord)) {
+                    candidates.push({ 
+                        row: targetRow, 
+                        name: targetName, 
+                        normalized: null,
+                        cheapScore: 0.7
+                    });
                     if (candidates.length >= MAX_CANDIDATES) break;
                     continue;
                 }
                 
-                // FAST CHECK 4: First word check (simple, no normalization)
-                if (sourceFirstWord && sourceFirstWord.length >= 3) {
-                    if (targetLower.includes(sourceFirstWord)) {
-                        candidates.push({ 
-                            row: targetRow, 
-                            name: targetName, 
-                            normalized: null,
-                            cheapScore: 0.7
-                        });
-                        if (candidates.length >= MAX_CANDIDATES) break;
-                        continue;
-                    }
-                }
-                
-                // FAST CHECK 5: Quick word overlap (split and check, no normalization)
-                // Only do this if we don't have enough candidates yet
-                if (candidates.length < MAX_CANDIDATES) {
+                // FAST CHECK 5: Quick word overlap (most expensive, do last and only if needed)
+                // Skip this check entirely if we're getting close to the limit
+                if (candidates.length < MAX_CANDIDATES - 5) {
                     const targetWordsQuick = targetLower.split(/\s+/).filter(w => w.length > 1);
                     // Quick check: just see if any word matches (don't count)
                     for (let tw of targetWordsQuick) {
@@ -3208,12 +3211,12 @@
                     // Update progress after each row
                 updateProgressBar(currentIndex);
                 
-                    // Process next row after a small delay to keep browser responsive
-                    // Use setTimeout with small delay to prevent browser throttling (especially on Vercel/CDN)
+                    // Process next row after a delay to keep browser responsive
+                    // Use longer setTimeout to prevent browser throttling/timeout on Vercel/CDN
                     // This ensures the browser doesn't think the page is frozen
                     setTimeout(() => {
                         requestAnimationFrame(processNextBatch);
-                    }, 5); // Small delay to yield to browser event loop
+                    }, 20); // Even longer delay for Vercel/CDN to prevent timeout (critical for enterprise volume)
                 } else {
                     // Done processing
                     hideLoadingBar();
