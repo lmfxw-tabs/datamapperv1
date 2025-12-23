@@ -2936,7 +2936,8 @@
             
             const candidates = [];
             const MAX_CANDIDATES = 15; // Limit candidates for expensive similarity calculation
-            const MAX_PREFILTER_ITERATIONS = 5000; // Safety cap to prevent worst-case timeouts (increased from 100)
+            const MAX_PREFILTER_ITERATIONS = 2000; // Safety cap to prevent worst-case timeouts
+            const MAX_SEARCH_FOR_HIGH_QUALITY = 200; // Max rows to search when we have low-quality candidates
             
             // ULTRA-FAST pre-filter: do ALL cheap checks BEFORE any normalization
             let iterations = 0;
@@ -2997,12 +2998,12 @@
                     }
                     // If we only have low-quality matches, keep searching for better ones
                     // But limit how far we search to prevent performance issues
-                    if (iterations > 500) {
-                        // We've checked 500 rows without finding high-quality matches
-                        // Unlikely to find better matches, so break
+                    if (iterations > MAX_SEARCH_FOR_HIGH_QUALITY) {
+                        // We've checked enough rows without finding high-quality matches
+                        // Break to prevent timeout
                         break;
                     }
-                    // Otherwise, continue searching for high-quality matches
+                    // Otherwise, continue searching for high-quality matches (but only up to limit)
                     continue;
                 }
                 
@@ -3016,10 +3017,10 @@
                     });
                     if (candidates.length >= MAX_CANDIDATES) {
                         // Check if we should break or continue
-                        if (hasHighQualityMatches || iterations > 500) {
+                        if (hasHighQualityMatches || iterations > MAX_SEARCH_FOR_HIGH_QUALITY) {
                             break;
                         }
-                        // Continue searching for high-quality matches
+                        // Continue searching for high-quality matches (but only up to limit)
                     }
                     continue;
                 }
