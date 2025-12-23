@@ -1,0 +1,20 @@
+{
+  "name": "data-mapper",
+  "version": "1.0.1",
+  "description": "A modern data mapping tool for matching records between datasets",
+  "main": "index.html",
+  "scripts": {
+    "version:patch": "npm version patch && node scripts/update-version.js",
+    "version:minor": "npm version minor && node scripts/update-version.js",
+    "version:major": "npm version major && node scripts/update-version.js",
+    "postversion": "node scripts/update-version.js && git add index.html && git commit --amend --no-edit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lmfxw-tabs/datamapperv1.git"
+  },
+  "keywords": ["data-mapping", "csv", "excel", "matching"],
+  "author": "",
+  "license": "MIT"
+}
+
