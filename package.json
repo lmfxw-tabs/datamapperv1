@@ -1,6 +1,6 @@
 {
   "name": "data-mapper",
-  "version": "1.0.3",
+  "version": "1.0.2",
   "description": "A modern data mapping tool for matching records between datasets",
   "main": "index.html",
   "scripts": {

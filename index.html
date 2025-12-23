@@ -1584,7 +1584,7 @@
         // ============================================================================
         // Update this version number when you make significant changes
         // Format: MAJOR.MINOR.PATCH (e.g., 1.2.3)
-        const APP_VERSION = '1.0.3';
+        const APP_VERSION = '1.0.2';
         const APP_BUILD_DATE = '2025-12-23'; // Update this when deploying
         
         // Display version in header
@@ -2935,14 +2935,22 @@
             const sourceWordsSet = new Set(sourceWordsQuick);
             
             const candidates = [];
-            const MAX_CANDIDATES = 15; // Limit candidates to prevent excessive normalization calculations
+            const MAX_CANDIDATES = 15; // Very aggressive limit for enterprise volume (8K+ target rows)
+            const MAX_PREFILTER_ITERATIONS = 100; // Very strict limit to prevent timeout on Vercel (was 200)
             
             // ULTRA-FAST pre-filter: do ALL cheap checks BEFORE any normalization
-            // Early-exit logic ensures we stop when we have enough good matches, maintaining performance
-            // Fast pre-filters (first char, length) reject ~95% of rows instantly
+            // Limit iterations aggressively to prevent timeout on large datasets
+            let iterations = 0;
             let highConfidenceCount = 0;
             
             for (let targetRow of targetData.rows) {
+                iterations++;
+                
+                // CRITICAL: Very aggressive early termination to prevent timeout
+                // Stop after 200 iterations regardless (prevents timeout)
+                if (iterations > MAX_PREFILTER_ITERATIONS) {
+                    break;
+                }
                 
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
