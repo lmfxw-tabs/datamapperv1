@@ -64,6 +64,14 @@
             justify-content: space-between;
         }
 
+        .version-display {
+            font-size: 11px;
+            font-weight: 400;
+            opacity: 0.85;
+            margin-left: 8px;
+            letter-spacing: 0.02em;
+        }
+
         .subtitle {
             text-align: left;
             color: #333333;
@@ -1351,7 +1359,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>DATA MAPPER</h1>
+        <h1>DATA MAPPER<span class="version-display" id="versionDisplay"></span></h1>
         <p class="subtitle">Intelligent data mapping for any two lists. Smart matching algorithms with confidence scoring.</p>
         <div class="step-indicator" id="stepIndicator">
             <div class="step-item active" id="step1" data-step="1">
@@ -1571,6 +1579,24 @@
     </div>
 
     <script>
+        // ============================================================================
+        // VERSION CONFIGURATION
+        // ============================================================================
+        // Update this version number when you make significant changes
+        // Format: MAJOR.MINOR.PATCH (e.g., 1.2.3)
+        const APP_VERSION = '1.0.0';
+        const APP_BUILD_DATE = '2025-01-XX'; // Update this when deploying
+        
+        // Display version in header
+        document.addEventListener('DOMContentLoaded', function() {
+            const versionDisplay = document.getElementById('versionDisplay');
+            if (versionDisplay) {
+                versionDisplay.textContent = ` v${APP_VERSION}`;
+            }
+            // Also log to console for debugging
+            console.log(`Data Mapper v${APP_VERSION} - Build ${APP_BUILD_DATE}`);
+        });
+
         // ELI5: These are like storage boxes that hold your data
         // Think of them as labeled containers where we keep the information from your files
         let sourceWorkbook = null;  // Stores all sheets from source file
