@@ -2557,6 +2557,12 @@
             if (!text) return '';
             let normalized = String(text).trim();
             
+            // STRIP COMMON PREFIXES: Remove alphanumeric prefix followed by underscore at the start
+            // This handles "Sts_", "sts_", "STS_", "prefix_", etc.
+            // Pattern: 2-10 alphanumeric characters followed by underscore at the start
+            // This prevents stripping single letters (like "A_Company") or very long prefixes
+            normalized = normalized.replace(/^[a-z0-9]{2,10}_/i, '');
+            
             // Split camelCase and PascalCase words BEFORE lowercasing
             // "DevReady" -> "Dev Ready", "aiLevelUp" -> "ai Level Up", "BarkBox" -> "Bark Box"
             normalized = normalized.replace(/([a-z])([A-Z])/g, '$1 $2');
@@ -2874,12 +2880,15 @@
             }
 
             const normalizedSourceName = normalizeText(sourceName);
-            // For exact string matching: normalize whitespace and make case-insensitive
+            // For exact string matching: normalize whitespace, strip prefix, and make case-insensitive
             // This handles "Castro Labor Solutions LLC" vs "Castro  Labor Solutions LLC"
+            // Also handles "Sts_Company Name" vs "Company Name" (prefix stripping)
             // IMPORTANT: This is for EXACT string matching (not normalized)
             // "Supreme Green Inc." should match "Supreme Green Inc." exactly (with period)
             // NOT "Supreme Green" (which would be a normalized match)
-            const sourceNameNormalizedForExact = sourceName.toLowerCase().trim().replace(/\s+/g, ' ');
+            const sourceNameNormalizedForExact = sourceName.toLowerCase().trim()
+                .replace(/^[a-z0-9]{2,10}_/i, '')  // Strip prefix before exact matching
+                .replace(/\s+/g, ' ');  // Normalize whitespace
             
             // CRITICAL: Check for EXACT STRING matches FIRST (before normalized)
             // OPTIMIZED: Use hash map for O(1) lookup instead of O(n) linear search
@@ -3199,13 +3208,16 @@
                 const targetName = String(targetRow[targetColumns.name] || '').trim();
                 if (!targetName) continue;
                 
-                // Index for exact string matches (whitespace normalized)
-                const normalizedForExact = targetName.toLowerCase().trim().replace(/\s+/g, ' ');
+                // Index for exact string matches (whitespace normalized + prefix stripped)
+                // This allows "Sts_Company Name" to match "Company Name"
+                const normalizedForExact = targetName.toLowerCase().trim()
+                    .replace(/^[a-z0-9]{2,10}_/i, '')  // Strip prefix
+                    .replace(/\s+/g, ' ');  // Normalize whitespace
                 if (!exactStringMap.has(normalizedForExact)) {
                     exactStringMap.set(normalizedForExact, targetRow);
                 }
                 
-                // Index for exact normalized matches (full normalization)
+                // Index for exact normalized matches (full normalization, which also strips prefixes)
                 const normalizedTarget = normalizeText(targetName);
                 if (!exactNormalizedMap.has(normalizedTarget)) {
                     exactNormalizedMap.set(normalizedTarget, targetRow);
