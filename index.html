@@ -2935,14 +2935,13 @@
             const sourceWordsSet = new Set(sourceWordsQuick);
             
             const candidates = [];
-            const MAX_CANDIDATES = 15; // Limit candidates for expensive similarity calculation
-            const MAX_PREFILTER_ITERATIONS = 2000; // Safety cap to prevent worst-case timeouts
-            const MAX_SEARCH_FOR_HIGH_QUALITY = 200; // Max rows to search when we have low-quality candidates
+            const MAX_CANDIDATES = 10; // Reduced from 15 to improve performance (fewer expensive similarity calculations)
+            const MAX_PREFILTER_ITERATIONS = 300; // Aggressive limit for performance (increased from 100, but much lower than 2000)
             
             // ULTRA-FAST pre-filter: do ALL cheap checks BEFORE any normalization
+            // PERFORMANCE PRIORITY: Aggressive limits to prevent timeout
             let iterations = 0;
             let highConfidenceCount = 0;
-            let hasHighQualityMatches = false; // Track if we found high-quality matches
             
             for (let targetRow of targetData.rows) {
                 iterations++;
@@ -2981,30 +2980,18 @@
                         cheapScore: 0.95 // Higher score for substring matches
                     });
                     highConfidenceCount++;
-                    hasHighQualityMatches = true; // ✅ Mark that we found high-quality match
                     
                     // Early exit: Stop if we have enough high-confidence matches
-                    if (highConfidenceCount >= 5 || candidates.length >= MAX_CANDIDATES) {
-                        break;
+                    if (highConfidenceCount >= 3 || candidates.length >= MAX_CANDIDATES) {
+                        break; // Reduced from 5 to 3 for better performance
                     }
                     continue;
                 }
                 
-                // ✅ KEY FIX: Only break if we have high-quality matches OR we've checked enough rows
+                // PERFORMANCE PRIORITY: Break immediately when we have enough candidates
+                // No quality-aware search to prevent timeout
                 if (candidates.length >= MAX_CANDIDATES) {
-                    // If we have high-quality matches, we're done
-                    if (hasHighQualityMatches) {
-                        break; // We have good matches, stop searching
-                    }
-                    // If we only have low-quality matches, keep searching for better ones
-                    // But limit how far we search to prevent performance issues
-                    if (iterations > MAX_SEARCH_FOR_HIGH_QUALITY) {
-                        // We've checked enough rows without finding high-quality matches
-                        // Break to prevent timeout
-                        break;
-                    }
-                    // Otherwise, continue searching for high-quality matches (but only up to limit)
-                    continue;
+                    break; // Stop immediately - performance is top priority
                 }
                 
                 // FAST CHECK 4: First word check (simple, no normalization) - only if we need more candidates
@@ -3016,11 +3003,7 @@
                         cheapScore: 0.7
                     });
                     if (candidates.length >= MAX_CANDIDATES) {
-                        // Check if we should break or continue
-                        if (hasHighQualityMatches || iterations > MAX_SEARCH_FOR_HIGH_QUALITY) {
-                            break;
-                        }
-                        // Continue searching for high-quality matches (but only up to limit)
+                        break; // Stop immediately - performance is top priority
                     }
                     continue;
                 }
