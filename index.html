@@ -2869,15 +2869,28 @@
         // RULE: Matching is ONLY based on descriptions (names), NOT IDs
         // CRITICAL: Exact matches ALWAYS win and are returned immediately
         function findBestMatches(sourceRow, exactStringMap, exactNormalizedMap) {
-            const sourceName = String(sourceRow[sourceColumns.name] || '').trim();
-            
-            // If source has no name/description, no match possible
-            if (!sourceName) {
-                return { 
-                    matches: [{ match: null, score: 0, reason: 'No source description' }],
-                    reason: 'No source description'
-                };
-            }
+            try {
+                // Validate inputs
+                if (!sourceRow || !sourceColumns || !sourceColumns.name) {
+                    return {
+                        matches: [
+                            { match: null, score: 0, reason: 'Invalid source row or columns' },
+                            { match: null, score: 0, reason: '' },
+                            { match: null, score: 0, reason: '' }
+                        ],
+                        reason: 'Invalid source row or columns'
+                    };
+                }
+                
+                const sourceName = String(sourceRow[sourceColumns.name] || '').trim();
+                
+                // If source has no name/description, no match possible
+                if (!sourceName) {
+                    return { 
+                        matches: [{ match: null, score: 0, reason: 'No source description' }],
+                        reason: 'No source description'
+                    };
+                }
 
             const normalizedSourceName = normalizeText(sourceName);
             // For exact string matching: normalize whitespace, strip prefix, and make case-insensitive
@@ -3115,6 +3128,18 @@
                 matches: topMatches,
                 reason: topMatches[0].reason || 'No match found'
             };
+            } catch (error) {
+                // Return safe default instead of throwing
+                console.error('Error in findBestMatches:', error);
+                return {
+                    matches: [
+                        { match: null, score: 0, reason: `Error: ${error.message}` },
+                        { match: null, score: 0, reason: '' },
+                        { match: null, score: 0, reason: '' }
+                    ],
+                    reason: `Error: ${error.message}`
+                };
+            }
         }
 
         // ELI5: Variables to track mapping progress
@@ -3233,54 +3258,200 @@
             // Use requestAnimationFrame for smooth updates
             let currentIndex = 0;
             
+            // Helper function to create empty result
+            function createEmptyResult(index) {
+                return {
+                    sourceId: '',
+                    sourceName: '',
+                    sourceRowIndex: index,
+                    sourceRow: null,
+                    targetId: '',
+                    targetName: '',
+                    targetRowIndex: -1,
+                    targetRow: null,
+                    score: 0,
+                    reason: 'Empty row',
+                    secondTargetId: '',
+                    secondTargetName: '',
+                    secondScore: 0,
+                    thirdTargetId: '',
+                    thirdTargetName: '',
+                    thirdScore: 0
+                };
+            }
+            
+            // Helper function to create "no match" result
+            function createNoMatchResult(sourceRow, index, reason) {
+                try {
+                    return {
+                        sourceId: (sourceRow && sourceColumns && sourceRow[sourceColumns.id]) ? String(sourceRow[sourceColumns.id]) : '',
+                        sourceName: (sourceRow && sourceColumns && sourceRow[sourceColumns.name]) ? String(sourceRow[sourceColumns.name]) : '',
+                        sourceRowIndex: index,
+                        sourceRow: sourceRow,
+                        targetId: '',
+                        targetName: '',
+                        targetRowIndex: -1,
+                        targetRow: null,
+                        score: 0,
+                        reason: reason || 'No match found',
+                        secondTargetId: '',
+                        secondTargetName: '',
+                        secondScore: 0,
+                        thirdTargetId: '',
+                        thirdTargetName: '',
+                        thirdScore: 0
+                    };
+                } catch (e) {
+                    return createEmptyResult(index);
+                }
+            }
+            
+            // Helper function to schedule next batch
+            function scheduleNext() {
+                try {
+                    setTimeout(() => {
+                        requestAnimationFrame(processNextBatch);
+                    }, 0);
+                } catch (scheduleError) {
+                    // Even scheduling failed - try direct call
+                    console.error('Error scheduling next batch:', scheduleError);
+                    setTimeout(processNextBatch, 0);
+                }
+            }
+            
             function processNextBatch() {
                 if (mappingCancelled) {
                     hideLoadingBar();
                     return;
                 }
                 
-                // Process one row at a time to prevent browser freezing
-                // Update progress after each row to keep UI responsive
-                if (currentIndex < sourceData.rows.length) {
-                    const sourceRow = sourceData.rows[currentIndex];
-                    const matchResults = findBestMatches(sourceRow, exactStringMap, exactNormalizedMap);
-                    const bestMatch = matchResults.matches[0];
-                    const secondMatch = matchResults.matches[1];
-                    const thirdMatch = matchResults.matches[2];
-                    
-                    mappingResults.push({
-                        sourceId: sourceRow[sourceColumns.id] || '',
-                        sourceName: sourceRow[sourceColumns.name] || '',
-                        sourceRow: sourceRow, // Store full source row for reference columns
-                        targetId: bestMatch.match ? (bestMatch.match[targetColumns.id] || '') : '',
-                        targetName: bestMatch.match ? (bestMatch.match[targetColumns.name] || '') : '',
-                        targetRow: bestMatch.match || null, // Store full target row for reference columns
-                        score: bestMatch.score,
-                        reason: bestMatch.reason || matchResults.reason,
-                        secondTargetId: secondMatch.match ? (secondMatch.match[targetColumns.id] || '') : '',
-                        secondTargetName: secondMatch.match ? (secondMatch.match[targetColumns.name] || '') : '',
-                        secondScore: secondMatch.score,
-                        thirdTargetId: thirdMatch.match ? (thirdMatch.match[targetColumns.id] || '') : '',
-                        thirdTargetName: thirdMatch.match ? (thirdMatch.match[targetColumns.name] || '') : '',
-                        thirdScore: thirdMatch.score
-                    });
-                
-                    currentIndex++;
-                    // Update progress after each row
-                updateProgressBar(currentIndex);
-                
-                    // Process next row after a delay to keep browser responsive
-                    // Use longer setTimeout to prevent browser throttling/timeout on Vercel/CDN
-                    // This ensures the browser doesn't think the page is frozen
-                    setTimeout(() => {
-                        requestAnimationFrame(processNextBatch);
-                    }, 5); // Small delay to yield to browser (exact match limits prevent timeout)
-                } else {
-                    // Done processing
-                    hideLoadingBar();
-                    if (!mappingCancelled) {
-                        displayResults();
+                // WRAP EVERYTHING in try-catch to prevent hard stops
+                try {
+                    if (currentIndex < sourceData.rows.length) {
+                        const sourceRow = sourceData.rows[currentIndex];
+                        
+                        // Validate sourceRow exists
+                        if (!sourceRow) {
+                            console.warn(`Row ${currentIndex + 1} is null/undefined, skipping`);
+                            mappingResults.push(createEmptyResult(currentIndex));
+                            currentIndex++;
+                            updateProgressBar(currentIndex);
+                            scheduleNext();
+                            return;
+                        }
+                        
+                        // Validate sourceColumns exists
+                        if (!sourceColumns || !sourceColumns.name) {
+                            console.error('sourceColumns is not defined!');
+                            hideLoadingBar();
+                            showError('Configuration error: source columns not set');
+                            return;
+                        }
+                        
+                        // Try to get match results - wrap in try-catch
+                        let matchResults;
+                        try {
+                            matchResults = findBestMatches(sourceRow, exactStringMap, exactNormalizedMap);
+                        } catch (matchError) {
+                            console.error(`Error in findBestMatches at row ${currentIndex + 1}:`, matchError);
+                            // Create a "no match" result and continue
+                            mappingResults.push(createNoMatchResult(sourceRow, currentIndex, `Error: ${matchError.message}`));
+                            currentIndex++;
+                            updateProgressBar(currentIndex);
+                            scheduleNext();
+                            return;
+                        }
+                        
+                        // Validate matchResults structure
+                        if (!matchResults || !matchResults.matches || !Array.isArray(matchResults.matches)) {
+                            console.warn(`Invalid matchResults at row ${currentIndex + 1}, creating no match`);
+                            mappingResults.push(createNoMatchResult(sourceRow, currentIndex, 'Invalid match result'));
+                            currentIndex++;
+                            updateProgressBar(currentIndex);
+                            scheduleNext();
+                            return;
+                        }
+                        
+                        // Safely extract matches with defaults
+                        const bestMatch = matchResults.matches[0] || { match: null, score: 0, reason: 'No match found' };
+                        const secondMatch = matchResults.matches[1] || { match: null, score: 0, reason: '' };
+                        const thirdMatch = matchResults.matches[2] || { match: null, score: 0, reason: '' };
+                        
+                        // Safely extract values with null checks
+                        try {
+                            const targetRowIndex = bestMatch.match ? targetData.rows.indexOf(bestMatch.match) : -1;
+                            mappingResults.push({
+                                sourceId: (sourceRow[sourceColumns.id] || '').toString(),
+                                sourceName: (sourceRow[sourceColumns.name] || '').toString(),
+                                sourceRowIndex: currentIndex,
+                                sourceRow: sourceRow, // Keep for backward compatibility
+                                targetId: (bestMatch.match && bestMatch.match[targetColumns.id]) ? bestMatch.match[targetColumns.id].toString() : '',
+                                targetName: (bestMatch.match && bestMatch.match[targetColumns.name]) ? bestMatch.match[targetColumns.name].toString() : '',
+                                targetRowIndex: targetRowIndex,
+                                targetRow: bestMatch.match || null, // Keep for backward compatibility
+                                score: typeof bestMatch.score === 'number' ? bestMatch.score : 0,
+                                reason: (bestMatch.reason || matchResults.reason || 'No match found').toString(),
+                                secondTargetId: (secondMatch.match && secondMatch.match[targetColumns.id]) ? secondMatch.match[targetColumns.id].toString() : '',
+                                secondTargetName: (secondMatch.match && secondMatch.match[targetColumns.name]) ? secondMatch.match[targetColumns.name].toString() : '',
+                                secondScore: typeof secondMatch.score === 'number' ? secondMatch.score : 0,
+                                thirdTargetId: (thirdMatch.match && thirdMatch.match[targetColumns.id]) ? thirdMatch.match[targetColumns.id].toString() : '',
+                                thirdTargetName: (thirdMatch.match && thirdMatch.match[targetColumns.name]) ? thirdMatch.match[targetColumns.name].toString() : '',
+                                thirdScore: typeof thirdMatch.score === 'number' ? thirdMatch.score : 0
+                            });
+                        } catch (pushError) {
+                            console.error(`Error creating result object at row ${currentIndex + 1}:`, pushError);
+                            // Create minimal result
+                            mappingResults.push(createNoMatchResult(sourceRow, currentIndex, 'Error creating result'));
+                        }
+                        
+                        currentIndex++;
+                        updateProgressBar(currentIndex);
+                        scheduleNext();
+                        
+                    } else {
+                        // Done processing
+                        hideLoadingBar();
+                        if (!mappingCancelled) {
+                            console.log(`✅ Mapping complete: ${mappingResults.length} rows processed`);
+                            displayResults();
+                        }
                     }
+                } catch (error) {
+                    // CATCH ALL ERRORS - never let processing stop
+                    console.error(`❌ CRITICAL ERROR at row ${currentIndex + 1}:`, error);
+                    console.error('Error stack:', error.stack);
+                    
+                    // Create error result and continue
+                    try {
+                        const sourceRow = sourceData.rows[currentIndex] || {};
+                        mappingResults.push(createNoMatchResult(sourceRow, currentIndex, `Critical error: ${error.message}`));
+                    } catch (fallbackError) {
+                        // Even creating error result failed - create minimal object
+                        mappingResults.push({
+                            sourceId: '',
+                            sourceName: 'ERROR',
+                            sourceRowIndex: currentIndex,
+                            sourceRow: null,
+                            targetId: '',
+                            targetName: '',
+                            targetRowIndex: -1,
+                            targetRow: null,
+                            score: 0,
+                            reason: `Critical error: ${error.message}`,
+                            secondTargetId: '',
+                            secondTargetName: '',
+                            secondScore: 0,
+                            thirdTargetId: '',
+                            thirdTargetName: '',
+                            thirdScore: 0
+                        });
+                    }
+                    
+                    currentIndex++;
+                    updateProgressBar(currentIndex);
+                    
+                    // Continue processing - NEVER STOP
+                    scheduleNext();
                 }
             }
             
