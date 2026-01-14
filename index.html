@@ -1636,7 +1636,8 @@
                         const rows = [];
                         for (let i = 1; i < lines.length; i++) {
                             const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-                            if (values.length === headers.length && values.some(v => v)) {
+                            // Keep ALL rows with correct column count, even if completely empty - user column selection will still apply
+                            if (values.length === headers.length) {
                                 const row = {};
                                 headers.forEach((header, index) => {
                                     row[header] = values[index] || '';
@@ -1674,13 +1675,12 @@
                             
                             for (let i = 1; i < jsonData.length; i++) {
                                 const values = jsonData[i].map(v => String(v || '').trim());
-                                if (values.some(v => v)) {
-                                    const row = {};
-                                    headers.forEach((header, index) => {
-                                        row[header] = values[index] || '';
-                                    });
-                                    rows.push(row);
-                                }
+                                // Keep ALL rows, even if completely empty - user column selection will still apply
+                                const row = {};
+                                headers.forEach((header, index) => {
+                                    row[header] = values[index] || '';
+                                });
+                                rows.push(row);
                             }
                             
                             sheets[sheetName] = { headers, rows };
