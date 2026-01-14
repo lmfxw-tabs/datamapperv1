@@ -1675,7 +1675,13 @@
                             
                             for (let i = 1; i < jsonData.length; i++) {
                                 const values = jsonData[i].map(v => String(v || '').trim());
-                                // Keep ALL rows, even if completely empty - user column selection will still apply
+                                
+                                // Only keep rows that have at least one non-empty value
+                                // This filters out completely empty rows (Excel's "used range" can include many empty rows)
+                                if (!values.some(v => v)) {
+                                    continue; // Skip completely empty rows
+                                }
+                                
                                 const row = {};
                                 headers.forEach((header, index) => {
                                     row[header] = values[index] || '';
